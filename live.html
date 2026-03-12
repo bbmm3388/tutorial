@@ -1,0 +1,1645 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>直播配置 · FongMi/TV 开发文档</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Noto+Serif+SC:wght@400;700;900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <header>
+      <div class="header-grid">
+        <div>
+          <div class="badge">直播配置 / Live Stream Reference</div>
+          <h1>
+            FongMi
+            <span>/TV</span>
+            直播接口
+            <br />
+            编写完全指南
+          </h1>
+          <p class="subtitle">
+            涵盖 M3U、TXT（#genre#）、JSON 三种直播订阅格式，EPG 节目单，多线路与 DRM
+            高级用法，附大量可运行示例。
+          </p>
+        </div>
+        <div class="version-tag">Based on FongMi/TV · 2026</div>
+      </div>
+    </header>
+
+    <nav>
+      <ul>
+        <li><a href="index.html">概览</a></li>
+        <li><a href="live.html">直播配置</a></li>
+        <li><a href="vod.html">点播配置</a></li>
+        <li><a href="spider.html">Spider 编写</a></li>
+      </ul>
+    </nav>
+
+    <main>
+      <!-- TOC -->
+      <div class="toc" style="margin-top: 48px">
+        <div class="toc-title">目录 · Table of Contents</div>
+        <a href="#live-config">
+          <span class="toc-dot"></span>
+          01 · 直播配置入口（lives[]）
+        </a>
+        <a href="#txt">
+          <span class="toc-dot"></span>
+          02 · TXT（#genre#）格式
+        </a>
+        <a href="#m3u">
+          <span class="toc-dot"></span>
+          03 · M3U / M3U8 格式
+        </a>
+        <a href="#json-live">
+          <span class="toc-dot"></span>
+          04 · JSON 直播格式
+        </a>
+        <a href="#epg">
+          <span class="toc-dot"></span>
+          05 · EPG 节目单配置
+        </a>
+        <a href="#multiline">
+          <span class="toc-dot"></span>
+          06 · 多线路 / 多源切换
+        </a>
+        <a href="#drm">
+          <span class="toc-dot"></span>
+          07 · DRM 加密播放
+        </a>
+        <a href="#tips">
+          <span class="toc-dot"></span>
+          08 · 最佳实践
+        </a>
+      </div>
+
+      <!-- ═══════════════ 01 LIVE CONFIG ═══════════════ -->
+      <section class="section" id="live-config">
+        <div class="section-num">01</div>
+        <h2>直播配置入口（lives[]）</h2>
+
+        <p>
+          直播订阅通过主配置 JSON 文件中的
+          <span class="ic">lives</span>
+          字段引入。每个元素对应一个直播订阅源，App 中可以切换不同源。
+        </p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JSON</span>
+            <span class="code-desc">config.json — lives 字段骨架</span>
+          </div>
+          <pre><code>{
+  <span class="c-key">"lives"</span>: [
+    {
+      <span class="c-key">"name"</span>: <span class="c-str">"我的直播源"</span>,          <span class="c-cmt">// 显示名称</span>
+      <span class="c-key">"type"</span>: <span class="c-num">0</span>,                    <span class="c-cmt">// 0=默认 (M3U/TXT/JSON)</span>
+      <span class="c-key">"url"</span>:  <span class="c-str">"https://example.com/live.txt"</span>, <span class="c-cmt">// 订阅地址</span>
+      <span class="c-key">"epg"</span>:  <span class="c-str">"https://epg.example.com/e.xml"</span>, <span class="c-cmt">// 节目单地址（可选）</span>
+      <span class="c-key">"logo"</span>: <span class="c-str">"https://img.example.com/logo/"</span>  <span class="c-cmt">// 台标前缀（可选）</span>
+    }
+  ],
+
+  <span class="c-cmt">// ── 全局 EPG（所有直播源共用）</span>
+  <span class="c-key">"epg"</span>: <span class="c-str">"https://epg.example.com/e.xml"</span>,
+
+  <span class="c-cmt">// ── 台标库前缀</span>
+  <span class="c-key">"logo"</span>: <span class="c-str">"https://gitcdn.example.com/logos/"</span>
+}</code></pre>
+        </div>
+
+        <h3>lives 数组字段详解</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>字段</th>
+                <th>类型</th>
+                <th>必填</th>
+                <th>说明</th>
+                <th>示例值</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">name</td>
+                <td class="td-type">string</td>
+                <td class="td-req">必填</td>
+                <td>在 App 内的显示名称</td>
+                <td><code>"我的直播"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">url</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选*</td>
+                <td>
+                  直播订阅地址（HTTP/HTTPS 或本地路径）；与
+                  <code>api</code>
+                  /
+                  <code>groups</code>
+                  三选一
+                </td>
+                <td><code>"https://example.com/live.m3u"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">api</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选*</td>
+                <td>爬虫脚本 API 地址（JS 脚本驱动的直播解析）；与 url / groups 三选一</td>
+                <td><code>"csp_LiveTV"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">ext</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>
+                  传递给
+                  <code>api</code>
+                  脚本的扩展参数（URL 或 JSON 字符串）
+                </td>
+                <td><code>"https://example.com/ext.json"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">jar</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>
+                  Spider 所在 JAR/DEX 文件地址，供
+                  <code>api</code>
+                  调用
+                </td>
+                <td><code>"https://example.com/spider.jar"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">groups</td>
+                <td class="td-type">array</td>
+                <td class="td-opt">可选*</td>
+                <td>
+                  直接内嵌频道分组列表（替代 url），格式见第 04 节 JSON 格式章节；与 url / api
+                  三选一
+                </td>
+                <td><code>[{"name":"央视","channel":[…]}]</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">epg</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>
+                  源专属 EPG（覆盖全局），多个地址逗号分隔；支持
+                  <code>{id}</code>
+                  /
+                  <code>{name}</code>
+                  /
+                  <code>{epg}</code>
+                  占位符
+                </td>
+                <td><code>"https://epg.example.com/e.xml"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">logo</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>
+                  台标 URL 前缀；支持
+                  <code>{id}</code>
+                  /
+                  <code>{name}</code>
+                  /
+                  <code>{logo}</code>
+                  占位符
+                </td>
+                <td><code>"https://img.example.com/logos/{name}.png"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">ua</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>全局 User-Agent，注入旗下所有频道（频道级同名字段优先）</td>
+                <td><code>"Mozilla/5.0 (Linux; Android 12)"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">referer</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>全局 Referer 请求头</td>
+                <td><code>"https://www.example.com/"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">origin</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>全局 Origin 请求头</td>
+                <td><code>"https://www.example.com"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">header</td>
+                <td class="td-type">object</td>
+                <td class="td-opt">可选</td>
+                <td>全局自定义请求头键值对，频道未设置时从此继承</td>
+                <td><code>{"Cookie":"token=abc"}</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">click</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>全局播放跳转解析 URL（处理需要二次解析的流）</td>
+                <td><code>"https://parse.example.com/live"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">timeout</td>
+                <td class="td-type">number</td>
+                <td class="td-opt">可选</td>
+                <td>请求超时秒数，默认使用全局播放超时配置</td>
+                <td><code>10</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">timeZone</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>EPG 时区标识</td>
+                <td><code>"Asia/Shanghai"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">catchup</td>
+                <td class="td-type">object</td>
+                <td class="td-opt">可选</td>
+                <td>全局回看（时移）配置；格式见第 04 节</td>
+                <td><code>{"type":"append","days":"7",…}</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">boot</td>
+                <td class="td-type">boolean</td>
+                <td class="td-opt">可选</td>
+                <td>启动时自动激活此直播源（默认 false）</td>
+                <td><code>true</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">pass</td>
+                <td class="td-type">boolean</td>
+                <td class="td-opt">可选</td>
+                <td>跳过该源，不加载内容；用于临时禁用（默认 false）</td>
+                <td><code>true</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-title">ℹ️ 格式自动识别</div>
+          FongMi/TV 会根据文件内容自动识别直播格式（M3U / TXT /
+          JSON）。若订阅地址需要爬虫脚本解析，则改用
+          <code>api</code>
+          字段代替
+          <code>url</code>
+          。
+        </div>
+
+        <h3>api / ext / jar —— 脚本驱动直播源</h3>
+        <p>
+          当直播源需要动态解析时，不写
+          <span class="ic">url</span>
+          ，改用
+          <span class="ic">api</span>
+          +
+          <span class="ic">ext</span>
+          +
+          <span class="ic">jar</span>
+          组合：
+        </p>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JSON</span>
+            <span class="code-desc">脚本驱动直播源示例</span>
+          </div>
+          <pre><code>{
+  <span class="c-key">"lives"</span>: [
+    {
+      <span class="c-key">"name"</span>:  <span class="c-str">"动态解析源"</span>,
+      <span class="c-key">"api"</span>:   <span class="c-str">"csp_LiveTV"</span>,         <span class="c-cmt">// jar 内爬虫的类名，或完整 JS URL</span>
+      <span class="c-key">"jar"</span>:   <span class="c-str">"https://example.com/spider.jar"</span>,  <span class="c-cmt">// 爬虫包 URL</span>
+      <span class="c-key">"ext"</span>:   <span class="c-str">"https://example.com/ext.json"</span>,   <span class="c-cmt">// 传给脚本的外部数据</span>
+      <span class="c-key">"epg"</span>:   <span class="c-str">"https://epg.example.com/e.xml"</span>
+    }
+  ]
+}</code></pre>
+        </div>
+      </section>
+
+      <!-- ═══════════════ 02 TXT ═══════════════ -->
+      <section class="section" id="txt">
+        <div class="section-num">02</div>
+        <h2>TXT（#genre#）格式</h2>
+
+        <p>
+          最简单的国产直播格式。规则是：每行
+          <strong>频道名,URL</strong>
+          ；分组用一行
+          <strong>分组名,#genre#</strong>
+          开头标注。
+        </p>
+
+        <h3>基础语法</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">TXT</span>
+            <span class="code-desc">live.txt — 最简结构</span>
+          </div>
+          <pre><code><span class="c-cmt"># 格式：频道名称,直播地址</span>
+<span class="c-cmt"># 分组行：分组名称,#genre#</span>
+
+<span class="c-hl"><span class="c-tag">央视频道,#genre#</span>                           </span>
+CCTV-1 综合,http://pull.example.com/cctv1.m3u8
+CCTV-2 财经,http://pull.example.com/cctv2.m3u8
+CCTV-5 体育,http://pull.example.com/cctv5.m3u8
+
+<span class="c-hl"><span class="c-tag">卫视频道,#genre#</span>                           </span>
+湖南卫视,http://pull.example.com/hunan.m3u8
+浙江卫视,http://pull.example.com/zhejiang.m3u8
+东方卫视,http://pull.example.com/dragon.m3u8
+
+<span class="c-hl"><span class="c-tag">港澳台,#genre#</span>                             </span>
+TVB 翡翠,http://hk.example.com/tvb.m3u8
+凤凰卫视,http://phx.example.com/live.m3u8</code></pre>
+        </div>
+
+        <h3>多线路语法（同一频道多个地址）</h3>
+        <p>
+          用
+          <span class="ic">#</span>
+          分隔同一频道的多个流地址；在每段地址末尾追加
+          <span class="ic">$线路名</span>
+          可给该线路命名：
+        </p>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">TXT</span>
+            <span class="code-desc">多线路 — # 分隔，$名称</span>
+          </div>
+          <pre><code>央视频道,#genre#
+
+<span class="c-cmt"># 单地址（基础写法）</span>
+CCTV-1 综合,http://line1.example.com/cctv1.m3u8
+
+<span class="c-cmt"># 多线路：地址1#地址2#地址3</span>
+<span class="c-hl">CCTV-4 中文国际,http://line1.example.com/cctv4.m3u8#http://line2.example.com/cctv4/live.m3u8#rtmp://backup.example.com/live/cctv4</span>
+
+<span class="c-cmt"># 带线路名称：地址$线路名#地址$线路名</span>
+<span class="c-hl">CCTV-5 体育,http://line1.example.com/cctv5.m3u8$电信线路#http://line2.example.com/cctv5.m3u8$联通线路#http://line3.example.com/cctv5.m3u8$移动线路</span></code></pre>
+        </div>
+
+        <h3>行内请求头注入（URL 管道语法）</h3>
+        <p>
+          在 URL 后追加
+          <span class="ic">|键=值&键=值</span>
+          可为该频道注入 HTTP 请求头，无需额外指令行：
+        </p>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">TXT</span>
+            <span class="code-desc">URL 管道注入请求头</span>
+          </div>
+          <pre><code>体育频道,#genre#
+
+<span class="c-cmt"># 格式：频道名,url|Header1=value1&Header2=value2</span>
+<span class="c-hl">咪咕体育,http://live.migu.cn/xxx.m3u8|Referer=https://www.migu.cn/&User-Agent=Mozilla/5.0</span>
+
+<span class="c-cmt"># 多线路 + 请求头（每段 URL 各自注入）</span>
+<span class="c-hl">腾讯体育,http://line1.v.qq.com/live.m3u8|Referer=https://sports.qq.com/#http://line2.v.qq.com/live.m3u8|Referer=https://sports.qq.com/</span></code></pre>
+        </div>
+
+        <h3>每频道设置指令</h3>
+        <p>
+          在频道 URL 行上方可放置设置指令行，作用于后续所有频道（遇
+          <span class="ic">#genre#</span>
+          新分组时自动重置）：
+        </p>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">TXT</span>
+            <span class="code-desc">指令行 — 影响后续所有频道直到下一个 #genre#</span>
+          </div>
+          <pre><code>付费频道,#genre#
+
+<span class="c-cmt"># 设置指令行（写在频道 URL 之前）</span>
+<span class="c-hl">ua=Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36</span>
+<span class="c-hl">referer=https://www.example.com/</span>
+<span class="c-hl">origin=https://www.example.com</span>
+<span class="c-hl">header={"Cookie":"token=abc123","X-Token":"xyz"}</span>
+<span class="c-hl">parse=1</span>
+<span class="c-hl">click=https://parse.example.com/live</span>
+<span class="c-hl">format=hls</span>
+
+CCTV-1 加密,http://line1.example.com/cctv1.m3u8
+CCTV-5 加密,http://line1.example.com/cctv5.m3u8
+
+<span class="c-cmt"># 新分组：以上指令自动重置</span>
+普通频道,#genre#
+TVB 翡翠,http://hk.example.com/tvb.m3u8</code></pre>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>指令前缀</th>
+                <th>说明</th>
+                <th>示例</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">ua=</td>
+                <td>User-Agent 请求头</td>
+                <td><code>ua=Mozilla/5.0</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">referer=</td>
+                <td>Referer 请求头</td>
+                <td><code>referer=https://example.com/</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">origin=</td>
+                <td>Origin 请求头</td>
+                <td><code>origin=https://example.com</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">header=</td>
+                <td>JSON 格式自定义请求头对象</td>
+                <td><code>header={"Cookie":"token=abc"}</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">parse=</td>
+                <td>
+                  解析标志；
+                  <code>1</code>
+                  =走解析，
+                  <code>0</code>
+                  =直接播放
+                </td>
+                <td><code>parse=1</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">click=</td>
+                <td>二次解析跳转 URL</td>
+                <td><code>click=https://parse.example.com/</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">format=</td>
+                <td>
+                  强制 MIME：
+                  <code>hls</code>
+                  、
+                  <code>mpd</code>
+                  /
+                  <code>dash</code>
+                  或完整 MIME 字符串
+                </td>
+                <td><code>format=hls</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">forceKey=</td>
+                <td>DRM 强制密钥；true/false</td>
+                <td><code>forceKey=true</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-title">ℹ️ EPG 匹配</div>
+          TXT 格式不支持行内声明 tvg-id。EPG 节目单匹配依次尝试频道的
+          <code>tvgId</code>
+          →
+          <code>tvgName</code>
+          →
+          <code>name</code>
+          三个值，直接把频道名命名为 XMLTV 中的 channel id 即可自动绑定。
+        </div>
+
+        <div class="callout callout-warn">
+          <div class="callout-title">⚠ 注意</div>
+          TXT 格式中频道名后必须紧跟英文逗号（
+          <code>,</code>
+          ），分组行末尾必须是
+          <code>,#genre#</code>
+          。中文逗号或空格会导致解析失败。文件编码请使用 UTF-8 + LF（不要 CRLF）。
+        </div>
+      </section>
+
+      <!-- ═══════════════ 03 M3U ═══════════════ -->
+      <section class="section" id="m3u">
+        <div class="section-num">03</div>
+        <h2>M3U / M3U8 格式</h2>
+
+        <p>
+          国际 IPTV 标准格式，两行为一个频道条目：
+          <span class="ic">#EXTINF</span>
+          元信息行 + 流 URL 行。
+        </p>
+
+        <h3>基础 M3U 结构</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">M3U</span>
+            <span class="code-desc">live.m3u — 标准结构</span>
+          </div>
+          <pre><code><span class="c-hl"><span class="c-kw">#EXTM3U</span>                                         </span>
+
+<span class="c-cmt"># 格式：#EXTINF:时长 [属性键="值" ...],频道名</span>
+<span class="c-cmt">#       URL</span>
+
+<span class="c-tag">#EXTINF</span>:<span class="c-num">-1</span> <span class="c-attr">tvg-id</span>=<span class="c-val">"CCTV1"</span> <span class="c-attr">tvg-name</span>=<span class="c-val">"CCTV-1 综合"</span> <span class="c-attr">tvg-logo</span>=<span class="c-val">"https://img.example.com/cctv1.png"</span> <span class="c-attr">group-title</span>=<span class="c-val">"央视频道"</span>,CCTV-1 综合
+http://pull.example.com/cctv1.m3u8
+
+<span class="c-tag">#EXTINF</span>:<span class="c-num">-1</span> <span class="c-attr">tvg-id</span>=<span class="c-val">"CCTV5"</span> <span class="c-attr">tvg-name</span>=<span class="c-val">"CCTV-5 体育"</span> <span class="c-attr">tvg-logo</span>=<span class="c-val">"https://img.example.com/cctv5.png"</span> <span class="c-attr">group-title</span>=<span class="c-val">"央视频道"</span>,CCTV-5 体育
+http://pull.example.com/cctv5.m3u8
+
+<span class="c-tag">#EXTINF</span>:<span class="c-num">-1</span> <span class="c-attr">tvg-id</span>=<span class="c-val">"HunanTV"</span> <span class="c-attr">tvg-logo</span>=<span class="c-val">"https://img.example.com/hunan.png"</span> <span class="c-attr">group-title</span>=<span class="c-val">"卫视频道"</span>,湖南卫视
+http://pull.example.com/hunan.m3u8</code></pre>
+        </div>
+
+        <h3>#EXTINF 属性全表</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>属性</th>
+                <th>类型</th>
+                <th>说明</th>
+                <th>示例</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">tvg-id</td>
+                <td class="td-type">string</td>
+                <td>与 EPG 中 channel id 匹配</td>
+                <td><code>CCTV1</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">tvg-name</td>
+                <td class="td-type">string</td>
+                <td>频道显示名（可与逗号后名称不同）</td>
+                <td><code>CCTV-1 综合</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">tvg-logo</td>
+                <td class="td-type">URL</td>
+                <td>台标图片完整 URL</td>
+                <td><code>https://img.ex/cctv1.png</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">group-title</td>
+                <td class="td-type">string</td>
+                <td>频道所属分组名</td>
+                <td><code>央视频道</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">tvg-chno</td>
+                <td class="td-type">number</td>
+                <td>频道号，用于排序</td>
+                <td><code>1</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">tvg-shift</td>
+                <td class="td-type">number</td>
+                <td>EPG 时间偏移（小时）</td>
+                <td><code>+8</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>文件头全局参数（#EXTM3U 行）</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">M3U</span>
+            <span class="code-desc">文件头全局声明</span>
+          </div>
+          <pre><code><span class="c-hl"><span class="c-kw">#EXTM3U</span> <span class="c-attr">x-tvg-url</span>=<span class="c-val">"https://epg.example.com/e.xml"</span> <span class="c-attr">x-tvg-logo-prefix</span>=<span class="c-val">"https://img.example.com/logos/"</span></span>
+
+<span class="c-cmt"># x-tvg-url         → EPG 订阅地址</span>
+<span class="c-cmt"># x-tvg-logo-prefix → 台标 URL 前缀，tvg-logo 只需写文件名</span>
+
+<span class="c-tag">#EXTINF</span>:<span class="c-num">-1</span> <span class="c-attr">tvg-id</span>=<span class="c-val">"CCTV1"</span> <span class="c-attr">tvg-logo</span>=<span class="c-val">"cctv1.png"</span> <span class="c-attr">group-title</span>=<span class="c-val">"央视"</span>,CCTV-1
+<span class="c-cmt"># 实际 logo URL → https://img.example.com/logos/cctv1.png</span>
+http://pull.example.com/cctv1.m3u8</code></pre>
+        </div>
+
+        <h3>自定义 HTTP 请求头（四种方式）</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">M3U</span>
+            <span class="code-desc">四种请求头注入方式</span>
+          </div>
+          <pre><code><span class="c-kw">#EXTM3U</span>
+
+<span class="c-cmt"># ── 方式1：#EXTVLCOPT（每条请求头单独一行）</span>
+<span class="c-tag">#EXTINF</span>:<span class="c-num">-1</span> <span class="c-attr">group-title</span>=<span class="c-val">"体育"</span>,咪咕体育
+<span class="c-hl"><span class="c-kw">#EXTVLCOPT</span>:http-user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64)</span>
+<span class="c-hl"><span class="c-kw">#EXTVLCOPT</span>:http-referrer=https://www.migu.cn/</span>
+<span class="c-hl"><span class="c-kw">#EXTVLCOPT</span>:http-origin=https://www.migu.cn</span>
+http://live.migu.cn/xxxxx.m3u8
+
+<span class="c-cmt"># ── 方式2：#EXTHTTP（JSON 对象一行写完）</span>
+<span class="c-tag">#EXTINF</span>:<span class="c-num">-1</span> <span class="c-attr">group-title</span>=<span class="c-val">"体育"</span>,腾讯体育
+<span class="c-hl"><span class="c-kw">#EXTHTTP</span>:{"Referer":"https://sports.qq.com/","User-Agent":"Mozilla/5.0"}</span>
+http://stream.v.qq.com/live.m3u8
+
+<span class="c-cmt"># ── 方式3：URL 管道语法（inline，无需额外指令行）</span>
+<span class="c-tag">#EXTINF</span>:<span class="c-num">-1</span> <span class="c-attr">group-title</span>=<span class="c-val">"体育"</span>,优酷体育
+<span class="c-hl">http://v.youku.com/live.m3u8|Referer=https://www.youku.com/&User-Agent=Mozilla/5.0</span>
+
+<span class="c-cmt"># ── 方式4：设置指令行（将 ua= / referer= / header= 等写在 URL 行之前）</span>
+<span class="c-tag">#EXTINF</span>:<span class="c-num">-1</span> <span class="c-attr">group-title</span>=<span class="c-val">"体育"</span>,爱奇艺体育
+<span class="c-hl">ua=Mozilla/5.0 (Linux; Android 12)</span>
+<span class="c-hl">referer=https://www.iqiyi.com/</span>
+<span class="c-hl">header={"Cookie":"iqiyi_t=abc123"}</span>
+http://data.iqiyi.com/live.m3u8</code></pre>
+        </div>
+
+        <h3>#KODIPROP 完整支持一览</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#KODIPROP 键</th>
+                <th>说明</th>
+                <th>示例值</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">inputstream.adaptive.license_type</td>
+                <td>DRM 类型</td>
+                <td>
+                  <code>clearkey</code>
+                  /
+                  <code>com.widevine.alpha</code>
+                  /
+                  <code>com.microsoft.playready</code>
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key">inputstream.adaptive.license_key</td>
+                <td>
+                  License 服务器 URL（或 ClearKey JSON）；远程 URL 支持
+                  <code>url|Headers|R{SSM}|</code>
+                  四段格式
+                </td>
+                <td><code>https://lic.ex.com/wv|Content-Type=octet-stream|R{SSM}|</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">inputstream.adaptive.drm_legacy</td>
+                <td>
+                  类型 + URL 合并写法，格式
+                  <code>type|url</code>
+                  ，等价于同时写 license_type + license_key
+                </td>
+                <td><code>com.widevine.alpha|https://lic.ex.com/wv</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">inputstream.adaptive.manifest_type</td>
+                <td>
+                  强制 MIME：
+                  <code>mpd</code>
+                  /
+                  <code>dash</code>
+                  → DASH，
+                  <code>hls</code>
+                  → HLS
+                </td>
+                <td><code>mpd</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">inputstream.adaptive.stream_headers</td>
+                <td>
+                  流请求头，格式
+                  <code>key=val&amp;key=val</code>
+                  ；支持
+                  <code>drmScheme=</code>
+                  /
+                  <code>drmLicense=</code>
+                  内嵌 DRM
+                </td>
+                <td><code>Referer=https://ex.com&amp;Origin=https://ex.com</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">inputstream.adaptive.common_headers</td>
+                <td>通用请求头，语法同 stream_headers</td>
+                <td><code>Authorization=Bearer TOKEN</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-title">✅ 最佳写法</div>
+          时长参数建议写
+          <code>-1</code>
+          （代表实时流，不限时长），不要写
+          <code>0</code>
+          以免部分播放器跳过。
+        </div>
+      </section>
+
+      <!-- ═══════════════ 04 JSON LIVE ═══════════════ -->
+      <section class="section" id="json-live">
+        <div class="section-num">04</div>
+        <h2>JSON 直播格式（FongMi 专属）</h2>
+
+        <p>
+          JSON 格式是 FongMi/TV 的增强直播格式，支持内嵌分组、多线路、DRM
+          密钥、自定义请求头等高级功能。可以作为独立
+          <span class="ic">live.json</span>
+          文件使用，也可以直接内嵌在主配置的
+          <span class="ic">lives</span>
+          数组里。
+        </p>
+
+        <h3>完整 JSON 骨架</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JSON</span>
+            <span class="code-desc">live.json — 完整骨架</span>
+          </div>
+          <pre><code>{
+  <span class="c-key">"epg"</span>:  <span class="c-str">"https://epg.example.com/e.xml"</span>,
+  <span class="c-key">"logo"</span>: <span class="c-str">"https://img.example.com/logos/"</span>,
+
+  <span class="c-key">"groups"</span>: [
+    {
+      <span class="c-key">"name"</span>: <span class="c-str">"央视频道"</span>,
+      <span class="c-key">"channel"</span>: [
+        {
+          <span class="c-key">"name"</span>:    <span class="c-str">"CCTV-1 综合"</span>,
+          <span class="c-key">"number"</span>: <span class="c-str">"001"</span>,
+          <span class="c-key">"logo"</span>:   <span class="c-str">"cctv1.png"</span>,
+          <span class="c-key">"epg"</span>:    <span class="c-str">"CCTV1"</span>,
+          <span class="c-key">"urls"</span>: [
+            <span class="c-str">"http://pull.example.com/cctv1.m3u8"</span>
+          ]
+        }
+      ]
+    }
+  ]
+}</code></pre>
+        </div>
+
+        <h3>group 对象字段说明</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>字段</th>
+                <th>类型</th>
+                <th>必填</th>
+                <th>说明</th>
+                <th>示例值</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">name</td>
+                <td class="td-type">string</td>
+                <td class="td-req">必填</td>
+                <td>
+                  分组显示名称；若名称含
+                  <code>_</code>
+                  且同时配置了
+                  <code>pass</code>
+                  ，格式为
+                  <code>名称_密码</code>
+                </td>
+                <td><code>"央视频道"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">channel</td>
+                <td class="td-type">array</td>
+                <td class="td-req">必填</td>
+                <td>
+                  频道对象数组。注意：JSON 键名为单数
+                  <code>"channel"</code>
+                  ，
+                  <strong>非</strong>
+                  <code>"channels"</code>
+                </td>
+                <td><code>[{"name":"CCTV-1","urls":[…]}]</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">pass</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>分组访问密码；设置后该分组隐藏，需输入密码才可查看</td>
+                <td><code>"1234"</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-warn">
+          <div class="callout-title">⚠ 常见错误</div>
+          group 内的频道列表键名必须是
+          <code>"channel"</code>
+          （单数），写成
+          <code>"channels"</code>
+          （复数）会导致频道列表无法解析。
+        </div>
+
+        <h3>channel 对象字段详解</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>字段</th>
+                <th>类型</th>
+                <th>必填</th>
+                <th>说明</th>
+                <th>示例值</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">name</td>
+                <td class="td-type">string</td>
+                <td class="td-req">必填</td>
+                <td>频道显示名称</td>
+                <td><code>"CCTV-1 综合"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">urls</td>
+                <td class="td-type">array</td>
+                <td class="td-req">必填</td>
+                <td>
+                  播放地址列表，多元素即多线路；元素格式：
+                  <code>url</code>
+                  或
+                  <code>url$线路名</code>
+                </td>
+                <td><code>["http://…/cctv1.m3u8$电信","rtmp://…/cctv1$联通"]</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">number</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>频道号（字符串），用于排序与按数字选台</td>
+                <td><code>"001"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">logo</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>台标图 URL（相对台标前缀或完整 URL）</td>
+                <td><code>"cctv1.png"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">epg</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>对应 XMLTV 的 channel id，用于匹配节目单</td>
+                <td><code>"CCTV1"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">tvgId</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>TVG ID，用于 logo/EPG 占位符替换；未设置时回退至 tvgName</td>
+                <td><code>"CCTV1"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">tvgName</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>TVG 显示名，用于占位符替换；未设置时回退至 name</td>
+                <td><code>"CCTV-1"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">header</td>
+                <td class="td-type">object</td>
+                <td class="td-opt">可选</td>
+                <td>HTTP 请求头键值对（优先级高于直播源级 header）</td>
+                <td><code>{"Referer":"https://…","User-Agent":"…"}</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">ua</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>User-Agent 快捷字段</td>
+                <td><code>"Mozilla/5.0 (Linux; Android 12)"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">referer</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>Referer 快捷字段</td>
+                <td><code>"https://www.migu.cn/"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">origin</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>Origin 快捷字段</td>
+                <td><code>"https://www.migu.cn"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">click</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>播放跳转解析 URL，频道播放时经此 URL 二次解析</td>
+                <td><code>"https://parse.example.com/live"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">format</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>
+                  强制指定 MIME 类型；支持简写：
+                  <code>hls</code>
+                  、
+                  <code>mpd</code>
+                  /
+                  <code>dash</code>
+                  ，或完整 MIME 字符串
+                </td>
+                <td>
+                  <code>"hls"</code>
+                  /
+                  <code>"mpd"</code>
+                  /
+                  <code>"video/x-mpegts"</code>
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key">parse</td>
+                <td class="td-type">number</td>
+                <td class="td-opt">可选</td>
+                <td>
+                  解析标志；
+                  <code>1</code>
+                  = 强制走解析流程，
+                  <code>0</code>
+                  = 直接播放（默认 0）
+                </td>
+                <td><code>1</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">catchup</td>
+                <td class="td-type">object</td>
+                <td class="td-opt">可选</td>
+                <td>频道级回看配置，覆盖直播源级设置</td>
+                <td><code>{"type":"append","source":"?start=…"}</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">drm</td>
+                <td class="td-type">object</td>
+                <td class="td-opt">可选</td>
+                <td>DRM 加密配置；格式见第 07 节 DRM 章节</td>
+                <td><code>{"type":"com.widevine.alpha","key":"https://…"}</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>catchup 对象字段说明</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>字段</th>
+                <th>类型</th>
+                <th>说明</th>
+                <th>示例值</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">source</td>
+                <td class="td-type">string</td>
+                <td>
+                  必填。回看 URL 模板，支持时间占位符：
+                  <code>${(b)yyyyMMddHHmmss}</code>
+                  （开始）、
+                  <code>${(e)yyyyMMddHHmmss}</code>
+                  （结束）、
+                  <code>${utc:}</code>
+                  /
+                  <code>${utcend:}</code>
+                  （Unix 时间戳）
+                </td>
+                <td><code>"?playseek=${(b)yyyyMMddHHmmss}-${(e)yyyyMMddHHmmss}"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">type</td>
+                <td class="td-type">string</td>
+                <td>
+                  <code>append</code>
+                  （默认）= 拼接到直播 URL 尾部；
+                  <code>default</code>
+                  = 直接用 source 替换 URL
+                </td>
+                <td><code>"append"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">days</td>
+                <td class="td-type">string</td>
+                <td>可回看天数</td>
+                <td><code>"7"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">regex</td>
+                <td class="td-type">string</td>
+                <td>用于判断当前 URL 是否支持回看的正则表达式</td>
+                <td><code>"/PLTV/"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">replace</td>
+                <td class="td-type">string</td>
+                <td>
+                  type=append 时生效，格式
+                  <code>原字符串,替换字符串</code>
+                  ，用于替换 URL 路径片段
+                </td>
+                <td><code>"/PLTV/,/TVOD/"</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>独立 live.json 顶层字段</h3>
+        <p>
+          当
+          <span class="ic">live.json</span>
+          作为独立配置文件使用时，支持以下顶层字段对请求层、代理、规则等进行全局控制：
+        </p>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JSON</span>
+            <span class="code-desc">独立 live.json — 完整顶层结构</span>
+          </div>
+          <pre><code>{
+  <span class="c-cmt">// 全局 Spider JAR（所有 lives[] 若未指定 jar 则回退至此）</span>
+  <span class="c-key">"spider"</span>: <span class="c-str">"https://example.com/spider.jar"</span>,
+
+  <span class="c-cmt">// 直播源列表</span>
+  <span class="c-key">"lives"</span>: [ <span class="c-cmt">/* ... 同 main config lives[] 结构 */</span> ],
+
+  <span class="c-cmt">// 响应拦截头（注入所有 OkHttp 响应）</span>
+  <span class="c-key">"headers"</span>: [
+    { <span class="c-key">"name"</span>: <span class="c-str">"Access-Control-Allow-Origin"</span>, <span class="c-key">"value"</span>: <span class="c-str">"*"</span> }
+  ],
+
+  <span class="c-cmt">// HTTP 代理配置</span>
+  <span class="c-key">"proxy"</span>: [
+    { <span class="c-key">"host"</span>: <span class="c-str">"proxy.example.com"</span>, <span class="c-key">"port"</span>: <span class="c-num">8080</span>,
+      <span class="c-key">"username"</span>: <span class="c-str">"user"</span>, <span class="c-key">"password"</span>: <span class="c-str">"pass"</span> }
+  ],
+
+  <span class="c-cmt">// URL 重写规则（正则替换）</span>
+  <span class="c-key">"rules"</span>: [
+    { <span class="c-key">"regex"</span>: <span class="c-str">"http://old\\.cdn\\.com"</span>, <span class="c-key">"replace"</span>: <span class="c-str">"https://new.cdn.com"</span> }
+  ],
+
+  <span class="c-cmt">// 自定义 DNS 主机映射</span>
+  <span class="c-key">"hosts"</span>: [
+    <span class="c-str">"192.168.1.1 internal.example.com"</span>
+  ],
+
+  <span class="c-cmt">// 广告 URL 过滤关键词（匹配到则拦截）</span>
+  <span class="c-key">"ads"</span>: [
+    <span class="c-str">"ad.example.com"</span>, <span class="c-str">"tracking.example.com"</span>
+  ]
+}</code></pre>
+        </div>
+      </section>
+
+      <!-- ═══════════════ 05 EPG ═══════════════ -->
+      <section class="section" id="epg">
+        <div class="section-num">05</div>
+        <h2>EPG 节目单配置</h2>
+
+        <p>
+          EPG（Electronic Program
+          Guide）让观众在直播界面看到节目名称、时间表，支持回看（需直播源本身支持）。FongMi/TV
+          使用标准
+          <strong>XMLTV</strong>
+          格式，每 6 小时自动刷新一次。
+        </p>
+
+        <h3>在主配置中设置 EPG</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JSON</span>
+            <span class="code-desc">config.json — EPG 配置</span>
+          </div>
+          <pre><code>{
+  <span class="c-cmt">// 全局 EPG（所有直播源共用）</span>
+  <span class="c-hl">  <span class="c-key">"epg"</span>: <span class="c-str">"https://epg.example.com/e.xml"</span>,</span>
+
+  <span class="c-cmt">// 支持 .xml.gz 压缩包（自动解压）</span>
+  <span class="c-key">"epg"</span>: <span class="c-str">"https://epg.example.com/e.xml.gz"</span>,
+
+  <span class="c-key">"lives"</span>: [
+    {
+      <span class="c-key">"name"</span>: <span class="c-str">"我的直播"</span>,
+      <span class="c-key">"url"</span>:  <span class="c-str">"https://example.com/live.m3u"</span>,
+      <span class="c-cmt">// 该直播源专属 EPG（优先级高于全局）</span>
+      <span class="c-hl">      <span class="c-key">"epg"</span>: <span class="c-str">"https://epg2.example.com/cn.xml"</span></span>
+    }
+  ]
+}</code></pre>
+        </div>
+
+        <h3>XMLTV 格式（自定义 EPG 文件）</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">XML</span>
+            <span class="code-desc">e.xml — XMLTV 最小结构</span>
+          </div>
+          <pre><code><span class="c-kw">&lt;?xml version="1.0" encoding="UTF-8"?&gt;</span>
+<span class="c-tag">&lt;tv</span> <span class="c-attr">generator-info-name</span>=<span class="c-val">"my-epg"</span><span class="c-tag">&gt;</span>
+
+  <span class="c-cmt">&lt;!-- ① 频道定义 ──────────────────────────── --&gt;</span>
+  <span class="c-hl">  <span class="c-tag">&lt;channel</span> <span class="c-attr">id</span>=<span class="c-val">"CCTV1"</span><span class="c-tag">&gt;</span></span>
+    <span class="c-tag">&lt;display-name</span> <span class="c-attr">lang</span>=<span class="c-val">"zh"</span><span class="c-tag">&gt;</span>CCTV-1 综合<span class="c-tag">&lt;/display-name&gt;</span>
+    <span class="c-tag">&lt;icon</span> <span class="c-attr">src</span>=<span class="c-val">"https://img.example.com/cctv1.png"</span> <span class="c-tag">/&gt;</span>
+  <span class="c-tag">&lt;/channel&gt;</span>
+
+  <span class="c-cmt">&lt;!-- ② 节目表 ────────────────────────────── --&gt;</span>
+  <span class="c-cmt">&lt;!-- start/stop 格式：YYYYMMDDHHmmss +时区 --&gt;</span>
+  <span class="c-hl">  <span class="c-tag">&lt;programme</span> <span class="c-attr">start</span>=<span class="c-val">"20260312080000 +0800"</span> <span class="c-attr">stop</span>=<span class="c-val">"20260312090000 +0800"</span> <span class="c-attr">channel</span>=<span class="c-val">"CCTV1"</span><span class="c-tag">&gt;</span></span>
+    <span class="c-tag">&lt;title</span> <span class="c-attr">lang</span>=<span class="c-val">"zh"</span><span class="c-tag">&gt;</span>朝闻天下<span class="c-tag">&lt;/title&gt;</span>
+    <span class="c-tag">&lt;desc</span>  <span class="c-attr">lang</span>=<span class="c-val">"zh"</span><span class="c-tag">&gt;</span>早间新闻资讯节目<span class="c-tag">&lt;/desc&gt;</span>
+  <span class="c-tag">&lt;/programme&gt;</span>
+
+<span class="c-tag">&lt;/tv&gt;</span></code></pre>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-title">ℹ️ EPG 频道 ID 匹配规则</div>
+          直播源中每个频道的
+          <code>tvg-id</code>
+          （M3U）或
+          <code>epg</code>
+          （JSON格式）必须与 XMLTV 文件中
+          <code>&lt;channel id="..."&gt;</code>
+          完全一致（区分大小写）才能匹配节目单。
+        </div>
+      </section>
+
+      <!-- ═══════════════ 06 MULTILINE ═══════════════ -->
+      <section class="section" id="multiline">
+        <div class="section-num">06</div>
+        <h2>多线路 / 多源切换</h2>
+
+        <p>FongMi/TV 支持为同一个频道配置多条流地址，播放失败时可手动或自动切换。</p>
+
+        <div class="card-grid">
+          <div class="card">
+            <div class="card-tag tag-txt">TXT</div>
+            <div class="card-title">TXT 多线路</div>
+            <div class="card-desc">
+              用
+              <code>#</code>
+              分隔地址，用
+              <code>url$线路名</code>
+              内嵌命名，可与请求头管道语法组合。
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-tag tag-m3u">M3U</div>
+            <div class="card-title">M3U 多线路</div>
+            <div class="card-desc">
+              重复写同名
+              <code>#EXTINF</code>
+              条目，每条 URL 为一路线路。
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-tag tag-json">JSON</div>
+            <div class="card-title">JSON 多线路</div>
+            <div class="card-desc">
+              <code>urls</code>
+              数组中添加多个元素即为多路。
+            </div>
+          </div>
+        </div>
+
+        <h3>TXT 多线路详细示例</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">TXT</span>
+            <span class="code-desc">TXT 多线路三种写法</span>
+          </div>
+          <pre><code>央视频道,#genre#
+
+<span class="c-cmt"># ① 简单多线路（用 # 分隔地址）</span>
+<span class="c-hl">CCTV-1,http://line1.ex/cctv1.m3u8#http://line2.ex/cctv1.m3u8</span>
+
+<span class="c-cmt"># ② 带线路名（url$线路名 格式）</span>
+<span class="c-hl">CCTV-5 体育,http://line1.ex/cctv5.m3u8$电信#http://line2.ex/cctv5.m3u8$联通#http://line3.ex/cctv5.m3u8$移动</span>
+
+<span class="c-cmt"># ③ 多线路 + 请求头（管道语法）</span>
+<span class="c-hl">CCTV-4 中文,http://line1.ex/cctv4.m3u8$电信|Referer=https://example.com#http://line2.ex/cctv4.m3u8$联通|Referer=https://example.com</span></code></pre>
+        </div>
+
+        <h3>M3U 多线路详细示例</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">M3U</span>
+            <span class="code-desc">同一频道多条 #EXTINF 条目</span>
+          </div>
+          <pre><code><span class="c-kw">#EXTM3U</span>
+
+<span class="c-cmt"># 重复同名条目 = 多线路</span>
+<span class="c-tag">#EXTINF</span>:<span class="c-num">-1</span> <span class="c-attr">tvg-id</span>=<span class="c-val">"CCTV5"</span> <span class="c-attr">group-title</span>=<span class="c-val">"央视"</span>,CCTV-5 体育
+http://line1.example.com/cctv5.m3u8
+
+<span class="c-hl"><span class="c-tag">#EXTINF</span>:<span class="c-num">-1</span> <span class="c-attr">tvg-id</span>=<span class="c-val">"CCTV5"</span> <span class="c-attr">group-title</span>=<span class="c-val">"央视"</span>,CCTV-5 体育</span>
+<span class="c-hl">http://line2.example.com/cctv5.m3u8</span>
+
+<span class="c-hl"><span class="c-tag">#EXTINF</span>:<span class="c-num">-1</span> <span class="c-attr">tvg-id</span>=<span class="c-val">"CCTV5"</span> <span class="c-attr">group-title</span>=<span class="c-val">"央视"</span>,CCTV-5 体育</span>
+<span class="c-hl">rtmp://backup.example.com/live/cctv5</span></code></pre>
+        </div>
+
+        <h3>支持的流协议</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>协议</th>
+                <th>URL 前缀示例</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">HLS</td>
+                <td><code>http(s)://…/live.m3u8</code></td>
+                <td>最常见，点播 / 直播通用</td>
+              </tr>
+              <tr>
+                <td class="td-key">RTMP</td>
+                <td><code>rtmp://…/live/stream</code></td>
+                <td>低延迟直播，需 FFmpeg 软解</td>
+              </tr>
+              <tr>
+                <td class="td-key">RTSP</td>
+                <td><code>rtsp://…/stream</code></td>
+                <td>IP 摄像头 / 局域网直播</td>
+              </tr>
+              <tr>
+                <td class="td-key">RTP/UDP</td>
+                <td><code>rtp://239.x.x.x:port</code></td>
+                <td>组播，IPTV 有线环境</td>
+              </tr>
+              <tr>
+                <td class="td-key">FLV</td>
+                <td><code>http(s)://…/live.flv</code></td>
+                <td>常见于国内直播平台</td>
+              </tr>
+              <tr>
+                <td class="td-key">MPEG-TS</td>
+                <td><code>http(s)://…/live.ts</code></td>
+                <td>卫星或有线数字电视流</td>
+              </tr>
+              <tr>
+                <td class="td-key">DASH</td>
+                <td><code>http(s)://…/manifest.mpd</code></td>
+                <td>自适应码率，支持 DRM</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ═══════════════ 07 DRM ═══════════════ -->
+      <section class="section" id="drm">
+        <div class="section-num">07</div>
+        <h2>DRM 加密流播放</h2>
+
+        <p>
+          FongMi/TV 原生支持
+          <strong>Widevine</strong>
+          、
+          <strong>PlayReady</strong>
+          、
+          <strong>ClearKey</strong>
+          三种 DRM 方案。
+        </p>
+
+        <div class="callout callout-warn">
+          <div class="callout-title">⚠ 说明</div>
+          DRM 解密需要设备具备相应的 DRM 授权（Widevine L1/L3 等）。ClearKey
+          是最容易测试的方案，因为密钥可以明文声明。
+        </div>
+
+        <h3>ClearKey（明文密钥）</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">M3U</span>
+            <span class="code-desc">ClearKey DRM — 标准 JSON 写法与十六进制短格式</span>
+          </div>
+          <pre><code><span class="c-kw">#EXTM3U</span>
+
+<span class="c-tag">#EXTINF</span>:<span class="c-num">-1</span> <span class="c-attr">group-title</span>=<span class="c-val">"加密频道"</span>,付费体育 HD
+
+<span class="c-cmt"># 方式1：完整 ClearKey JSON</span>
+<span class="c-hl"><span class="c-kw">#KODIPROP</span>:inputstream.adaptive.license_type=clearkey</span>
+<span class="c-hl"><span class="c-kw">#KODIPROP</span>:inputstream.adaptive.license_key={"keys":[{"kty":"oct","k":"BASE64URL_KEY","kid":"BASE64URL_KID"}],"type":"temporary"}</span>
+
+<span class="c-cmt"># 方式2：十六进制短格式 KID:KEY（App 自动转换为标准 JSON）</span>
+<span class="c-hl"><span class="c-kw">#KODIPROP</span>:inputstream.adaptive.license_type=clearkey</span>
+<span class="c-hl"><span class="c-kw">#KODIPROP</span>:inputstream.adaptive.license_key=a0b1c2d3e4f50001a0b1c2d3e4f50001:deadbeef01020304deadbeef01020304</span>
+<span class="c-cmt"># 多组密钥用逗号分隔：kid1:key1,kid2:key2</span>
+
+http://encrypted.example.com/channel.mpd</code></pre>
+        </div>
+
+        <h3>Widevine（License 服务器）</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">M3U</span>
+            <span class="code-desc">Widevine DRM — License Server</span>
+          </div>
+          <pre><code><span class="c-kw">#EXTM3U</span>
+
+<span class="c-tag">#EXTINF</span>:<span class="c-num">-1</span> <span class="c-attr">group-title</span>=<span class="c-val">"加密频道"</span>,NBA 直播
+
+<span class="c-kw">#KODIPROP</span>:inputstream=inputstream.adaptive
+<span class="c-hl"><span class="c-kw">#KODIPROP</span>:inputstream.adaptive.license_type=com.widevine.alpha</span>
+<span class="c-hl"><span class="c-kw">#KODIPROP</span>:inputstream.adaptive.license_key=https://widevine.example.com/license|Content-Type=application/octet-stream|R{SSM}|</span>
+
+<span class="c-cmt"># license_key 格式：URL|Headers|Request|Response</span>
+<span class="c-cmt"># R{SSM} = 将 DRM 请求 body 原样转发</span>
+
+http://protected.example.com/nba.mpd</code></pre>
+        </div>
+
+        <h3>在 JSON 格式中声明 DRM</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JSON</span>
+            <span class="code-desc">JSON live 内嵌 DRM 配置</span>
+          </div>
+          <pre><code>{
+  <span class="c-key">"groups"</span>: [{
+    <span class="c-key">"name"</span>: <span class="c-str">"加密频道"</span>,
+    <span class="c-key">"channel"</span>: [{
+      <span class="c-key">"name"</span>: <span class="c-str">"付费 4K 体育"</span>,
+      <span class="c-key">"urls"</span>: [<span class="c-str">"https://protected.example.com/4k.mpd"</span>],
+      <span class="c-hl">      <span class="c-key">"drm"</span>: {</span>
+<span class="c-hl">        <span class="c-key">"type"</span>:     <span class="c-str">"com.widevine.alpha"</span>,</span>
+<span class="c-hl">        <span class="c-key">"key"</span>:      <span class="c-str">"https://lic.example.com/widevine"</span>,</span>
+<span class="c-hl">        <span class="c-key">"forceKey"</span>: <span class="c-kw">false</span>,</span>
+<span class="c-hl">        <span class="c-key">"header"</span>: { <span class="c-key">"Authorization"</span>: <span class="c-str">"Bearer YOUR_TOKEN"</span> }</span>
+<span class="c-hl">      }                                     </span>
+    }]
+  }]
+}</code></pre>
+        </div>
+
+        <h3>drm 对象字段说明</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>字段</th>
+                <th>类型</th>
+                <th>说明</th>
+                <th>示例值</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">type</td>
+                <td class="td-type">string</td>
+                <td>DRM 类型</td>
+                <td>
+                  <code>"com.widevine.alpha"</code>
+                  /
+                  <code>"com.microsoft.playready"</code>
+                  /
+                  <code>"clearkey"</code>
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key">key</td>
+                <td class="td-type">string</td>
+                <td>
+                  License 服务器 URL（Widevine/PlayReady），或 ClearKey 的内联 JSON 密钥字符串，或
+                  <code>kid:key</code>
+                  十六进制短格式
+                </td>
+                <td><code>"https://widevine.example.com/license"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">forceKey</td>
+                <td class="td-type">boolean</td>
+                <td>
+                  <code>true</code>
+                  = 强制使用
+                  <code>key</code>
+                  中的地址作为默认 License URI
+                </td>
+                <td><code>false</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">header</td>
+                <td class="td-type">object</td>
+                <td>License 请求附加的 HTTP 请求头（如 Authorization）</td>
+                <td><code>{"Authorization":"Bearer TOKEN"}</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ═══════════════ 08 TIPS ═══════════════ -->
+      <section class="section" id="tips">
+        <div class="section-num">08</div>
+        <h2>最佳实践 &amp; 常见问题</h2>
+
+        <h3>编写流程建议</h3>
+        <ul class="step-list">
+          <li>
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <div class="step-title">确认流地址是否可访问</div>
+              <div class="step-desc">
+                用 VLC、PotPlayer 或 curl 先验证 URL 能正常播放，再写入订阅文件。
+              </div>
+            </div>
+          </li>
+          <li>
+            <div class="step-num">2</div>
+            <div class="step-content">
+              <div class="step-title">选择合适格式</div>
+              <div class="step-desc">
+                简单场景用 TXT 或 M3U；需要精细控制 Header、DRM、多线路命名时用 JSON 格式。
+              </div>
+            </div>
+          </li>
+          <li>
+            <div class="step-num">3</div>
+            <div class="step-content">
+              <div class="step-title">配置 EPG</div>
+              <div class="step-desc">
+                确保 tvg-id（M3U）或 epg（JSON）与 XMLTV 文件中的 channel id
+                完全一致，注意区分大小写。
+              </div>
+            </div>
+          </li>
+          <li>
+            <div class="step-num">4</div>
+            <div class="step-content">
+              <div class="step-title">托管到可访问的 URL</div>
+              <div class="step-desc">
+                推荐 GitHub Raw、Gitee、Cloudflare Pages 或私有服务器。文件必须可以被设备直接 HTTP
+                访问。
+              </div>
+            </div>
+          </li>
+          <li>
+            <div class="step-num">5</div>
+            <div class="step-content">
+              <div class="step-title">在 FongMi/TV 中填入订阅地址</div>
+              <div class="step-desc">
+                进入 App → 设置 → 直播配置，填入文件 URL 或把链接写入主配置的 lives[].url 字段。
+              </div>
+            </div>
+          </li>
+        </ul>
+
+        <h3>常见错误排查</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>现象</th>
+                <th>可能原因</th>
+                <th>解决方案</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>频道列表空白</td>
+                <td>URL 不可访问 / 格式错误</td>
+                <td>用浏览器打开 URL 确认内容可见；检查逗号是否为英文</td>
+              </tr>
+              <tr>
+                <td>无法播放（卡死）</td>
+                <td>流地址失效 / 编码不支持</td>
+                <td>切换备用线路；尝试切换播放器类型（EXO↔IJK）</td>
+              </tr>
+              <tr>
+                <td>节目单不显示</td>
+                <td>EPG URL 错误 / tvg-id 不匹配</td>
+                <td>检查 EPG URL；核对 tvg-id 与 XMLTV channel id 是否完全一致</td>
+              </tr>
+              <tr>
+                <td>台标不显示</td>
+                <td>logo URL 失效 / 前缀配置错误</td>
+                <td>检查台标 URL 是否可访问；确认相对路径 + 前缀拼接结果正确</td>
+              </tr>
+              <tr>
+                <td>TXT 解析只有一行</td>
+                <td>换行符问题（\r\n vs \n）</td>
+                <td>用 UTF-8 + LF 保存文件，避免 Windows CRLF</td>
+              </tr>
+              <tr>
+                <td>DRM 流黑屏</td>
+                <td>设备 Widevine 等级 L3 / 密钥错误</td>
+                <td>先用 ClearKey 测试调试；检查 License URL 和请求头</td>
+              </tr>
+              <tr>
+                <td>JSON 频道不显示</td>
+                <td>键名写成 "channels"（复数）</td>
+                <td>
+                  改为
+                  <code>"channel"</code>
+                  （单数）
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>格式对比总结</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>维度</th>
+                <th>TXT (#genre#)</th>
+                <th>M3U</th>
+                <th>JSON</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>上手难度</td>
+                <td>⭐ 最简单</td>
+                <td>⭐⭐ 适中</td>
+                <td>⭐⭐⭐ 较复杂</td>
+              </tr>
+              <tr>
+                <td>跨软件兼容</td>
+                <td>国产软件为主</td>
+                <td>✅ 最广泛</td>
+                <td>FongMi 专属</td>
+              </tr>
+              <tr>
+                <td>多线路命名</td>
+                <td>支持 url$名称</td>
+                <td>重复条目</td>
+                <td>✅ 最清晰（urls 数组）</td>
+              </tr>
+              <tr>
+                <td>DRM 支持</td>
+                <td>❌</td>
+                <td>✅ #KODIPROP</td>
+                <td>✅ drm 对象</td>
+              </tr>
+              <tr>
+                <td>请求头控制</td>
+                <td>指令行 / 管道语法</td>
+                <td>4 种方式</td>
+                <td>✅ header 对象</td>
+              </tr>
+              <tr>
+                <td>EPG 绑定</td>
+                <td>频道名匹配</td>
+                <td>tvg-id 属性</td>
+                <td>epg 字段</td>
+              </tr>
+              <tr>
+                <td>回看（Catchup）</td>
+                <td>❌</td>
+                <td>有限支持</td>
+                <td>✅ catchup 对象</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        FongMi/TV 开发文档 · 基于
+        <a href="https://github.com/FongMi/TV" style="color: var(--accent); text-decoration: none">
+          FongMi/TV (release 分支)
+        </a>
+        源码整理
+      </p>
+    </footer>
+
+    <script src="main.js" defer></script>
+  </body>
+</html>

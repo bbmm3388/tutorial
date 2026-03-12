@@ -1,0 +1,304 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FongMi/TV 开发文档</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Noto+Serif+SC:wght@400;700;900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <header>
+      <div class="header-grid">
+        <div>
+          <div class="badge">开发文档 / Developer Reference</div>
+          <h1>
+            FongMi
+            <span>/TV</span>
+            <br />
+            开发完全指南
+          </h1>
+          <p class="subtitle">
+            涵盖直播订阅（TXT / M3U / JSON）、点播站点（JAR / JS / Python
+            Spider）、配置文件结构，以及 Spider 编写完整教程。
+          </p>
+        </div>
+        <div class="version-tag">Based on FongMi/TV · 2026</div>
+      </div>
+    </header>
+
+    <nav>
+      <ul>
+        <li><a href="index.html">概览</a></li>
+        <li><a href="live.html">直播配置</a></li>
+        <li><a href="vod.html">点播配置</a></li>
+        <li><a href="spider.html">Spider 编写</a></li>
+      </ul>
+    </nav>
+
+    <main>
+      <!-- ═══ LANDING NAV CARDS ═══ -->
+      <div
+        class="card-grid"
+        style="margin-top: 48px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr))"
+      >
+        <a href="live.html" style="text-decoration: none">
+          <div class="card" style="border-top: 3px solid var(--accent2)">
+            <div
+              class="card-tag"
+              style="
+                background: var(--accent2) 18;
+                color: var(--accent2);
+                border-color: var(--accent2) 50;
+              "
+            >
+              直播配置
+            </div>
+            <div class="card-title">📺 直播订阅格式</div>
+            <p>
+              TXT（#genre#）· M3U / M3U8 · JSON 直播格式 · EPG 节目单 · 多线路 · DRM 加密 · 最佳实践
+            </p>
+          </div>
+        </a>
+        <a href="vod.html" style="text-decoration: none">
+          <div class="card" style="border-top: 3px solid var(--accent3)">
+            <div
+              class="card-tag"
+              style="
+                background: var(--accent3) 18;
+                color: var(--accent3);
+                border-color: var(--accent3) 50;
+              "
+            >
+              点播配置
+            </div>
+            <div class="card-title">🎬 点播站点配置</div>
+            <p>
+              sites[] 字段详解 · type 类型 · Vod 对象格式 · 播放信息 · Filter 筛选系统 · parses[]
+              解析器 · 全局网络字段
+            </p>
+          </div>
+        </a>
+        <a href="spider.html" style="text-decoration: none">
+          <div class="card" style="border-top: 3px solid var(--accent)">
+            <div
+              class="card-tag"
+              style="
+                background: var(--accent) 18;
+                color: var(--accent);
+                border-color: var(--accent) 50;
+              "
+            >
+              Spider 编写
+            </div>
+            <div class="card-title">🕷️ Spider 编写指南</div>
+            <p>
+              JAR（Java/Kotlin） · JS（QuickJS） · Python（Chaquopy） · 全方法接口参考 · req / pd /
+              pdfh 工具函数 · 调试技巧
+            </p>
+          </div>
+        </a>
+      </div>
+
+      <!-- ═══ OVERVIEW ═══ -->
+      <section class="section" id="overview">
+        <div class="section-num">01</div>
+        <h2>项目概览与架构</h2>
+
+        <p>
+          FongMi/TV 是一个面向 Android TV 与手机的开源影视 +
+          直播平台。它本身不内置任何资源，所有内容来自外部「接口」（配置文件 JSON）。直播功能由
+          <strong>ExoPlayer（Media3）</strong>
+          +
+          <strong>FFmpeg 软解</strong>
+          驱动，支持自动硬解 → 软解降级；点播功能由动态加载的 Spider 驱动，支持 JAR / JS / Python
+          三种运行时。
+        </p>
+
+        <h3>技术栈一览</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>模块</th>
+                <th>技术</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">播放器</td>
+                <td>ExoPlayer (Media3)</td>
+                <td>硬解 / 软解自动切换</td>
+              </tr>
+              <tr>
+                <td class="td-key">软解</td>
+                <td>FFmpeg</td>
+                <td>处理特殊编码流（HEVC / AV1 等）</td>
+              </tr>
+              <tr>
+                <td class="td-key">DRM</td>
+                <td>Widevine / PlayReady / ClearKey</td>
+                <td>支持 #KODIPROP 声明与 JSON drm 字段</td>
+              </tr>
+              <tr>
+                <td class="td-key">EPG</td>
+                <td>XMLTV (.xml / .gz)</td>
+                <td>每 6 小时自动刷新，tvg-id 精确匹配</td>
+              </tr>
+              <tr>
+                <td class="td-key">本地服务</td>
+                <td>NanoHTTPD</td>
+                <td>端口 9978–9998，供 Spider proxy() 使用</td>
+              </tr>
+              <tr>
+                <td class="td-key">JAR Spider</td>
+                <td>Android DexClassLoader</td>
+                <td>动态加载 classes.dex，运行 Java/Kotlin Spider</td>
+              </tr>
+              <tr>
+                <td class="td-key">JS Spider</td>
+                <td>QuickJS（ES2020+）</td>
+                <td>内置 req / pd / pdfh / CryptoJS / cheerio</td>
+              </tr>
+              <tr>
+                <td class="td-key">Python Spider</td>
+                <td>Chaquopy (Python 3)</td>
+                <td>支持 requests / BeautifulSoup / lxml</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>配置文件加载流程</h3>
+        <ul class="step-list">
+          <li>
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <div class="step-title">加载主配置 JSON</div>
+              <div class="step-desc">
+                从用户填写的 URL 拉取 config.json（或 depot.json）。Depot 模式可聚合多个子配置。
+              </div>
+            </div>
+          </li>
+          <li>
+            <div class="step-num">2</div>
+            <div class="step-content">
+              <div class="step-title">解析 sites[] + lives[]</div>
+              <div class="step-desc">点播站点写入 sites[]，直播源写入 lives[]。两者可以共存。</div>
+            </div>
+          </li>
+          <li>
+            <div class="step-num">3</div>
+            <div class="step-content">
+              <div class="step-title">下载并缓存 Spider</div>
+              <div class="step-desc">
+                App 按需下载顶层 spider（JAR/JS/PY），及各站点独立的 jar 文件，缓存在本地。
+              </div>
+            </div>
+          </li>
+          <li>
+            <div class="step-num">4</div>
+            <div class="step-content">
+              <div class="step-title">实例化 Spider 并调用接口方法</div>
+              <div class="step-desc">
+                用户访问站点首页 →
+                <code>homeContent()</code>
+                ；点击分类 →
+                <code>categoryContent()</code>
+                ；点击视频 →
+                <code>detailContent()</code>
+                +
+                <code>playerContent()</code>
+                。
+              </div>
+            </div>
+          </li>
+        </ul>
+      </section>
+
+      <!-- ═══ MAIN CONFIG ═══ -->
+      <section class="section" id="config">
+        <div class="section-num">02</div>
+        <h2>主配置文件骨架</h2>
+
+        <p>
+          无论是直播还是点播，入口都是唯一一个主配置 JSON
+          文件。以下是包含所有顶层字段的最小可用骨架：
+        </p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JSON</span>
+            <span class="code-desc">config.json — 顶层骨架（直播 + 点播 + 解析器）</span>
+          </div>
+          <pre><code>{
+  <span class="c-cmt">// ── 全局 Spider 包（所有 type=3/1/2 站点默认使用）</span>
+  <span class="c-key">"spider"</span>: <span class="c-str">"https://cdn.example.com/spider.jar"</span>,
+
+  <span class="c-cmt">// ── 点播站点列表 → 详见"点播配置"页</span>
+  <span class="c-key">"sites"</span>: [
+    {
+      <span class="c-key">"key"</span>: <span class="c-str">"demo"</span>, <span class="c-key">"name"</span>: <span class="c-str">"演示站"</span>,
+      <span class="c-key">"type"</span>: <span class="c-num">3</span>, <span class="c-key">"api"</span>: <span class="c-str">"csp_Demo"</span>
+    }
+  ],
+
+  <span class="c-cmt">// ── 直播源列表 → 详见"直播配置"页</span>
+  <span class="c-key">"lives"</span>: [
+    {
+      <span class="c-key">"name"</span>: <span class="c-str">"默认直播"</span>,
+      <span class="c-key">"url"</span>:  <span class="c-str">"https://cdn.example.com/live.m3u"</span>,
+      <span class="c-key">"epg"</span>:  <span class="c-str">"https://epg.example.com/e.xml"</span>
+    }
+  ],
+
+  <span class="c-cmt">// ── 解析器列表 → 详见"点播配置"页 parses[] 章节</span>
+  <span class="c-key">"parses"</span>: [
+    { <span class="c-key">"name"</span>: <span class="c-str">"通用解析"</span>, <span class="c-key">"type"</span>: <span class="c-num">1</span>, <span class="c-key">"url"</span>: <span class="c-str">"https://jx.example.com/?url="</span> }
+  ],
+
+  <span class="c-cmt">// ── 触发解析器的 URL 关键词</span>
+  <span class="c-key">"flags"</span>: [<span class="c-str">"youku.com"</span>, <span class="c-str">"iqiyi.com"</span>, <span class="c-str">"bilibili.com"</span>],
+
+  <span class="c-cmt">// ── 广告 URL 黑名单关键词</span>
+  <span class="c-key">"ads"</span>: [<span class="c-str">"ad.example.com"</span>],
+
+  <span class="c-cmt">// ── URL 重写规则</span>
+  <span class="c-key">"rules"</span>: [{ <span class="c-key">"regex"</span>: <span class="c-str">"\\bhttp://"</span>, <span class="c-key">"replace"</span>: <span class="c-str">"https://"</span> }],
+
+  <span class="c-cmt">// ── 全局 EPG</span>
+  <span class="c-key">"epg"</span>: <span class="c-str">"https://epg.example.com/all.xml"</span>,
+
+  <span class="c-cmt">// ── 壁纸 / 公告</span>
+  <span class="c-key">"wallpaper"</span>: <span class="c-str">"https://cdn.example.com/bg.jpg"</span>,
+  <span class="c-key">"notice"</span>:    <span class="c-str">"2026-01-01 更新"</span>
+}</code></pre>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-title">ℹ️ Depot 聚合壳</div>
+          也可以提供一个 Depot JSON（含
+          <code>"urls":[{name,url}...]</code>
+          ），App 会让用户从中选择，或聚合多个子配置——这是"壳"的常用分发方式。
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        FongMi/TV 开发文档 · 基于
+        <a href="https://github.com/FongMi/TV" style="color: var(--accent); text-decoration: none">
+          FongMi/TV (release 分支)
+        </a>
+        源码整理
+      </p>
+    </footer>
+
+    <script src="main.js" defer></script>
+  </body>
+</html>

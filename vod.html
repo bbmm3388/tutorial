@@ -1,0 +1,1633 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>点播配置 · FongMi/TV 开发文档</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Noto+Serif+SC:wght@400;700;900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <header>
+      <div class="header-grid">
+        <div>
+          <div class="badge">点播配置 / VOD Configuration Reference</div>
+          <h1>
+            FongMi
+            <span>/TV</span>
+            点播配置
+            <br />
+            编写完全指南
+          </h1>
+          <p class="subtitle">
+            涵盖 sites[] 站点定义、Vod 数据格式、分类筛选系统、parses[]
+            解析器，以及全局网络控制字段详解。
+          </p>
+        </div>
+        <div class="version-tag">Based on FongMi/TV · 2026</div>
+      </div>
+    </header>
+
+    <nav>
+      <ul>
+        <li><a href="index.html">概览</a></li>
+        <li><a href="live.html">直播配置</a></li>
+        <li><a href="vod.html">点播配置</a></li>
+        <li><a href="spider.html">Spider 编写</a></li>
+      </ul>
+    </nav>
+
+    <main>
+      <!-- TOC -->
+      <div class="toc" style="margin-top: 48px">
+        <div class="toc-title">目录 · Table of Contents</div>
+        <a href="#vod-overview">
+          <span class="toc-dot"></span>
+          01 · VOD 主配置顶层结构
+        </a>
+        <a href="#sites">
+          <span class="toc-dot"></span>
+          02 · sites[] 站点字段详解
+        </a>
+        <a href="#type">
+          <span class="toc-dot"></span>
+          03 · type 类型与 Spider 加载
+        </a>
+        <a href="#vod-fields">
+          <span class="toc-dot"></span>
+          04 · Vod 视频对象字段
+        </a>
+        <a href="#play-format">
+          <span class="toc-dot"></span>
+          05 · 播放信息格式
+        </a>
+        <a href="#result">
+          <span class="toc-dot"></span>
+          06 · Result 返回结构
+        </a>
+        <a href="#filter">
+          <span class="toc-dot"></span>
+          07 · Class（分类）与 Filter（筛选）
+        </a>
+        <a href="#parses">
+          <span class="toc-dot"></span>
+          08 · parses[] 解析器配置
+        </a>
+        <a href="#global-fields">
+          <span class="toc-dot"></span>
+          09 · 全局网络控制字段
+        </a>
+        <a href="#vod-example">
+          <span class="toc-dot"></span>
+          10 · 完整配置示例
+        </a>
+      </div>
+
+      <!-- ═══════════════ 01 VOD OVERVIEW ═══════════════ -->
+      <section class="section" id="vod-overview">
+        <div class="section-num">01</div>
+        <h2>VOD 主配置顶层结构</h2>
+
+        <p>
+          点播（VOD）功能通过主配置 JSON 文件驱动，每个站点对应
+          <span class="ic">sites[]</span>
+          中的一个元素。配置文件可以同时包含直播
+          <span class="ic">lives[]</span>
+          和点播
+          <span class="ic">sites[]</span>
+          。
+        </p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JSON</span>
+            <span class="code-desc">config.json — 完整顶层骨架</span>
+          </div>
+          <pre><code>{
+  <span class="c-cmt">// ── 全局 Spider 包（所有站点默认使用，站点可覆盖）</span>
+  <span class="c-key">"spider"</span>: <span class="c-str">"https://example.com/spider.jar"</span>,
+
+  <span class="c-cmt">// ── 点播站点列表（详见本页第 02 节）</span>
+  <span class="c-key">"sites"</span>: [
+    {
+      <span class="c-key">"key"</span>:  <span class="c-str">"cctv"</span>,
+      <span class="c-key">"name"</span>: <span class="c-str">"央视影音"</span>,
+      <span class="c-key">"type"</span>: <span class="c-num">3</span>,
+      <span class="c-key">"api"</span>:  <span class="c-str">"csp_CCTV"</span>,
+      <span class="c-key">"jar"</span>:  <span class="c-str">"https://example.com/spider.jar"</span>
+    }
+  ],
+
+  <span class="c-cmt">// ── 直播源列表（详见直播配置页）</span>
+  <span class="c-key">"lives"</span>: [],
+
+  <span class="c-cmt">// ── 解析器列表（详见本页第 08 节）</span>
+  <span class="c-key">"parses"</span>: [
+    { <span class="c-key">"name"</span>: <span class="c-str">"在线解析1"</span>, <span class="c-key">"type"</span>: <span class="c-num">1</span>, <span class="c-key">"url"</span>: <span class="c-str">"https://jx.example.com/?url="</span> }
+  ],
+
+  <span class="c-cmt">// ── 播放标记（哪些来源需要走解析器）</span>
+  <span class="c-key">"flags"</span>: [<span class="c-str">"youku"</span>, <span class="c-str">"iqiyi"</span>, <span class="c-str">"bilibili"</span>],
+
+  <span class="c-cmt">// ── 广告 URL 过滤关键词（匹配到则拦截）</span>
+  <span class="c-key">"ads"</span>: [<span class="c-str">"ad.example.com"</span>, <span class="c-str">"tracking.example.com"</span>],
+
+  <span class="c-cmt">// ── URL 重写规则</span>
+  <span class="c-key">"rules"</span>: [
+    { <span class="c-key">"regex"</span>: <span class="c-str">"http://old\\.cdn\\.com"</span>, <span class="c-key">"replace"</span>: <span class="c-str">"https://new.cdn.com"</span> }
+  ],
+
+  <span class="c-cmt">// ── 自定义 DNS 映射</span>
+  <span class="c-key">"hosts"</span>: [<span class="c-str">"192.168.1.1 internal.example.com"</span>],
+
+  <span class="c-cmt">// ── DNS over HTTPS</span>
+  <span class="c-key">"doh"</span>: [
+    { <span class="c-key">"name"</span>: <span class="c-str">"阿里 DoH"</span>, <span class="c-key">"url"</span>: <span class="c-str">"https://dns.alidns.com/dns-query"</span> }
+  ],
+
+  <span class="c-cmt">// ── 全局响应头注入（OkHttp 响应拦截器）</span>
+  <span class="c-key">"headers"</span>: [
+    { <span class="c-key">"name"</span>: <span class="c-str">"Access-Control-Allow-Origin"</span>, <span class="c-key">"value"</span>: <span class="c-str">"*"</span> }
+  ],
+
+  <span class="c-cmt">// ── HTTP 代理</span>
+  <span class="c-key">"proxy"</span>: [
+    { <span class="c-key">"host"</span>: <span class="c-str">"proxy.example.com"</span>, <span class="c-key">"port"</span>: <span class="c-num">8080</span>,
+      <span class="c-key">"username"</span>: <span class="c-str">"user"</span>, <span class="c-key">"password"</span>: <span class="c-str">"pass"</span> }
+  ],
+
+  <span class="c-cmt">// ── 壁纸 URL</span>
+  <span class="c-key">"wallpaper"</span>: <span class="c-str">"https://example.com/wallpaper.jpg"</span>,
+
+  <span class="c-cmt">// ── 配置公告（App 启动时展示）</span>
+  <span class="c-key">"notice"</span>: <span class="c-str">"更新日期：2026-01-01"</span>
+}</code></pre>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-title">ℹ️ 壳 / 多配置聚合</div>
+          主配置也可以是一个
+          <code>"urls"</code>
+          数组，每个元素是一个子配置的 URL（Depot 模式）。App
+          会自动加载第一个子配置，同时合并多个配置源。这是「聚合壳」的常用写法。
+        </div>
+
+        <h3>Depot 聚合壳写法</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JSON</span>
+            <span class="code-desc">depot.json — 聚合多个子配置</span>
+          </div>
+          <pre><code>{
+  <span class="c-key">"urls"</span>: [
+    {
+      <span class="c-key">"name"</span>: <span class="c-str">"主配置"</span>,
+      <span class="c-key">"url"</span>:  <span class="c-str">"https://example.com/main_config.json"</span>,
+      <span class="c-key">"desc"</span>: <span class="c-str">"包含直播 + 点播"</span>
+    },
+    {
+      <span class="c-key">"name"</span>: <span class="c-str">"备用配置"</span>,
+      <span class="c-key">"url"</span>:  <span class="c-str">"https://example2.com/config.json"</span>
+    }
+  ]
+}</code></pre>
+        </div>
+      </section>
+
+      <!-- ═══════════════ 02 SITES ═══════════════ -->
+      <section class="section" id="sites">
+        <div class="section-num">02</div>
+        <h2>sites[] 站点字段详解</h2>
+
+        <p>
+          每个点播站点是
+          <span class="ic">sites</span>
+          数组中的一个对象，对应一个数据源（如某影视网站爬虫）。
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>字段</th>
+                <th>类型</th>
+                <th>必填</th>
+                <th>说明</th>
+                <th>示例值</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">key</td>
+                <td class="td-type">string</td>
+                <td class="td-req">必填</td>
+                <td>全局唯一标识符（数据库主键），用于持久化用户的搜索可用/切换状态</td>
+                <td><code>"cctv"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">name</td>
+                <td class="td-type">string</td>
+                <td class="td-req">必填</td>
+                <td>在 App 中的显示名称</td>
+                <td><code>"央视影音"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">type</td>
+                <td class="td-type">number</td>
+                <td class="td-opt">可选</td>
+                <td>
+                  Spider 类型，决定如何加载
+                  <code>api</code>
+                  ：
+                  <code>0</code>
+                  =内置（XML/JSON API），
+                  <code>1</code>
+                  =JS（QuickJS），
+                  <code>2</code>
+                  =Python（Chaquopy），
+                  <code>3</code>
+                  =JAR（Java/Kotlin DEX）。默认
+                  <code>0</code>
+                </td>
+                <td><code>3</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">api</td>
+                <td class="td-type">string</td>
+                <td class="td-req">必填</td>
+                <td>
+                  内置时为接口 URL；JS/Python/JAR 时为 Spider 类名（通常以
+                  <code>csp_</code>
+                  为前缀）
+                </td>
+                <td>
+                  <code>"csp_MySpider"</code>
+                  /
+                  <code>"https://api.example.com/"</code>
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key">jar</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>
+                  Spider 文件 URL（type=1 时为 .js，type=2 时为 .py，type=3 时为
+                  .jar/.dex）。未设置则继承顶层
+                  <code>spider</code>
+                  字段
+                </td>
+                <td><code>"https://example.com/spider.jar"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">ext</td>
+                <td class="td-type">string / object</td>
+                <td class="td-opt">可选</td>
+                <td>
+                  传给
+                  <code>Spider.init(ctx, extend)</code>
+                  的扩展参数。可以是远程 URL（自动 fetch）或 JSON 字符串或对象
+                </td>
+                <td><code>"https://example.com/ext.json"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">playUrl</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>全局解析前缀 URL，点播解析失败时自动拼接视频地址尝试解析</td>
+                <td><code>"https://jx.example.com/?url="</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">click</td>
+                <td class="td-type">string</td>
+                <td class="td-opt">可选</td>
+                <td>点击播放时先经此 URL 跳转解析</td>
+                <td><code>"https://jx.example.com/?url="</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">timeout</td>
+                <td class="td-type">number</td>
+                <td class="td-opt">可选</td>
+                <td>请求超时秒数（最小 1 秒，内部转换为毫秒）。若未设置则使用全局播放超时</td>
+                <td><code>15</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">searchable</td>
+                <td class="td-type">number</td>
+                <td class="td-opt">可选</td>
+                <td>
+                  搜索状态：
+                  <code>0</code>
+                  =禁止，
+                  <code>1</code>
+                  =允许（默认），
+                  <code>2</code>
+                  =已被用户禁用。注意：
+                  <code>0</code>
+                  表示强制禁用，用户无法开启；
+                  <code>1</code>
+                  /
+                  <code>2</code>
+                  用户可切换
+                </td>
+                <td><code>1</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">changeable</td>
+                <td class="td-type">number</td>
+                <td class="td-opt">可选</td>
+                <td>
+                  用户是否可切换来源：
+                  <code>0</code>
+                  =强制禁止，
+                  <code>1</code>
+                  =允许（默认），
+                  <code>2</code>
+                  =用户已禁用
+                </td>
+                <td><code>1</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">quickSearch</td>
+                <td class="td-type">number</td>
+                <td class="td-opt">可选</td>
+                <td>
+                  是否参与快速搜索（搜索时直接返回结果不分页）：
+                  <code>0</code>
+                  =不参与，
+                  <code>1</code>
+                  =参与（默认）
+                </td>
+                <td><code>1</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">indexs</td>
+                <td class="td-type">number</td>
+                <td class="td-opt">可选</td>
+                <td>
+                  是否加入全局搜索索引：
+                  <code>0</code>
+                  =不加（默认），
+                  <code>1</code>
+                  =加入
+                </td>
+                <td><code>1</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">hide</td>
+                <td class="td-type">number</td>
+                <td class="td-opt">可选</td>
+                <td>
+                  隐藏该站点：
+                  <code>0</code>
+                  =显示（默认），
+                  <code>1</code>
+                  =隐藏（不在站点列表里出现但仍可通过 key 引用）
+                </td>
+                <td><code>0</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">categories</td>
+                <td class="td-type">array</td>
+                <td class="td-opt">可选</td>
+                <td>
+                  白名单分类列表。设置后
+                  <code>homeContent</code>
+                  返回的 class 会过滤，只保留列表中的分类名。未设置则显示全部
+                </td>
+                <td><code>["电影","电视剧","综艺"]</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">header</td>
+                <td class="td-type">object</td>
+                <td class="td-opt">可选</td>
+                <td>附加到该站点所有请求的 HTTP 请求头</td>
+                <td><code>{"Cookie":"sess=abc","X-Token":"xyz"}</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">style</td>
+                <td class="td-type">object</td>
+                <td class="td-opt">可选</td>
+                <td>封面展示样式，格式见第 04 节 style 字段说明</td>
+                <td><code>{"type":"rect"}</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JSON</span>
+            <span class="code-desc">sites[] — 完整示例</span>
+          </div>
+          <pre><code>{
+  <span class="c-key">"spider"</span>: <span class="c-str">"https://example.com/spider.jar"</span>,
+  <span class="c-key">"sites"</span>: [
+    {
+      <span class="c-key">"key"</span>:         <span class="c-str">"site_a"</span>,
+      <span class="c-key">"name"</span>:        <span class="c-str">"Site A"</span>,
+      <span class="c-key">"type"</span>:        <span class="c-num">3</span>,
+      <span class="c-key">"api"</span>:         <span class="c-str">"csp_SiteA"</span>,
+      <span class="c-cmt">// jar 未设置 → 继承顶层 spider</span>
+      <span class="c-key">"ext"</span>:         <span class="c-str">"https://example.com/ext_a.json"</span>,
+      <span class="c-key">"searchable"</span>:  <span class="c-num">1</span>,
+      <span class="c-key">"changeable"</span>:  <span class="c-num">1</span>,
+      <span class="c-key">"categories"</span>:  [<span class="c-str">"电影"</span>, <span class="c-str">"电视剧"</span>]
+    },
+    {
+      <span class="c-key">"key"</span>:         <span class="c-str">"site_b_js"</span>,
+      <span class="c-key">"name"</span>:        <span class="c-str">"Site B (JS)"</span>,
+      <span class="c-key">"type"</span>:        <span class="c-num">1</span>,
+      <span class="c-key">"api"</span>:         <span class="c-str">"csp_SiteB"</span>,
+      <span class="c-key">"jar"</span>:         <span class="c-str">"https://example.com/siteb.js"</span>,
+      <span class="c-key">"ext"</span>:         <span class="c-str">"https://example.com/ext_b.json"</span>,
+      <span class="c-key">"searchable"</span>:  <span class="c-num">1</span>,
+      <span class="c-key">"timeout"</span>:     <span class="c-num">20</span>
+    },
+    {
+      <span class="c-key">"key"</span>:         <span class="c-str">"site_c_xml"</span>,
+      <span class="c-key">"name"</span>:        <span class="c-str">"Site C (内置 XML API)"</span>,
+      <span class="c-key">"type"</span>:        <span class="c-num">0</span>,
+      <span class="c-key">"api"</span>:         <span class="c-str">"https://api.sitec.com/"</span>,
+      <span class="c-key">"searchable"</span>:  <span class="c-num">0</span>
+    }
+  ]
+}</code></pre>
+        </div>
+      </section>
+
+      <!-- ═══════════════ 03 TYPE ═══════════════ -->
+      <section class="section" id="type">
+        <div class="section-num">03</div>
+        <h2>type 类型与 Spider 加载机制</h2>
+
+        <p>
+          <span class="ic">type</span>
+          字段决定如何加载和运行
+          <span class="ic">api</span>
+          字段指定的爬虫：
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>type 值</th>
+                <th>类型名</th>
+                <th>加载引擎</th>
+                <th>jar 格式</th>
+                <th>api 格式</th>
+                <th>适用场景</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">0</td>
+                <td>内置</td>
+                <td>App 内置解析器</td>
+                <td>无需指定</td>
+                <td>HTTP(S) API URL 或内置规则名</td>
+                <td>遵循标准 CMS API（苹果 XML/JSON API 格式）的站点</td>
+              </tr>
+              <tr>
+                <td class="td-key">1</td>
+                <td>JS</td>
+                <td>QuickJS（嵌入式 JS 引擎）</td>
+                <td>
+                  远程
+                  <code>.js</code>
+                  文件 URL
+                </td>
+                <td>JS 文件中导出的爬虫类名</td>
+                <td>需要 JavaScript 自定义解析逻辑的站点</td>
+              </tr>
+              <tr>
+                <td class="td-key">2</td>
+                <td>Python</td>
+                <td>Chaquopy（Android Python 3）</td>
+                <td>
+                  远程
+                  <code>.py</code>
+                  文件 URL
+                </td>
+                <td>Python 文件中的爬虫类名</td>
+                <td>需要 Python 库（requests / BeautifulSoup 等）的站点</td>
+              </tr>
+              <tr>
+                <td class="td-key">3</td>
+                <td>JAR</td>
+                <td>Android DexClassLoader</td>
+                <td>
+                  远程
+                  <code>.jar</code>
+                  文件（包含 classes.dex）
+                </td>
+                <td>
+                  爬虫类的完整类名或
+                  <code>csp_</code>
+                  简写
+                </td>
+                <td>需要 Android SDK / Java 库的高性能场景</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>jar 字段继承规则</h3>
+        <p>
+          当站点
+          <span class="ic">jar</span>
+          为空时，自动继承顶层
+          <span class="ic">spider</span>
+          字段的值。通常一个配置文件只需要一个 spider.jar，各站点只写
+          <span class="ic">api</span>
+          （类名）即可：
+        </p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JSON</span>
+            <span class="code-desc">一个 JAR 驱动多个站点</span>
+          </div>
+          <pre><code>{
+  <span class="c-hl">  <span class="c-key">"spider"</span>: <span class="c-str">"https://example.com/spider.jar"</span>,  </span>
+  <span class="c-key">"sites"</span>: [
+    { <span class="c-key">"key"</span>: <span class="c-str">"s1"</span>, <span class="c-key">"name"</span>: <span class="c-str">"站点1"</span>, <span class="c-key">"type"</span>: <span class="c-num">3</span>, <span class="c-key">"api"</span>: <span class="c-str">"csp_Site1"</span> },
+    { <span class="c-key">"key"</span>: <span class="c-str">"s2"</span>, <span class="c-key">"name"</span>: <span class="c-str">"站点2"</span>, <span class="c-key">"type"</span>: <span class="c-num">3</span>, <span class="c-key">"api"</span>: <span class="c-str">"csp_Site2"</span> },
+    <span class="c-cmt">// 覆盖：站点3 使用不同的 jar</span>
+    { <span class="c-key">"key"</span>: <span class="c-str">"s3"</span>, <span class="c-key">"name"</span>: <span class="c-str">"站点3"</span>, <span class="c-key">"type"</span>: <span class="c-num">1</span>, <span class="c-key">"api"</span>: <span class="c-str">"csp_Site3"</span>,
+      <span class="c-key">"jar"</span>: <span class="c-str">"https://other.example.com/site3.js"</span> }
+  ]
+}</code></pre>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-title">ℹ️ 内置类型（type=0）</div>
+          内置类型直接对接标准 苹果 CMS / XML API 格式——即接口返回 XML 或 JSON，包含
+          <code>&lt;rss&gt;</code>
+          /
+          <code>&lt;class&gt;</code>
+          /
+          <code>&lt;list&gt;</code>
+          /
+          <code>&lt;video&gt;</code>
+          (XML) 或
+          <code>class[]</code>
+          /
+          <code>list[]</code>
+          (JSON)。
+          <code>api</code>
+          字段填接口根 URL 即可（无需 Spider 代码）。
+        </div>
+      </section>
+
+      <!-- ═══════════════ 04 VOD FIELDS ═══════════════ -->
+      <section class="section" id="vod-fields">
+        <div class="section-num">04</div>
+        <h2>Vod 视频对象字段</h2>
+
+        <p>
+          Spider 各方法返回的
+          <span class="ic">list[]</span>
+          数组中，每个元素是一个 Vod 对象，字段名使用下划线命名法，兼容苹果 CMS XML API 格式。
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>JSON 字段</th>
+                <th>类型</th>
+                <th>说明</th>
+                <th>示例值</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">vod_id</td>
+                <td class="td-type">string</td>
+                <td>
+                  视频唯一 ID，传入
+                  <code>detailContent()</code>
+                  和
+                  <code>playerContent()</code>
+                </td>
+                <td><code>"movie_123"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">vod_name</td>
+                <td class="td-type">string</td>
+                <td>视频标题</td>
+                <td><code>"流浪地球2"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">vod_pic</td>
+                <td class="td-type">string</td>
+                <td>封面图 URL</td>
+                <td><code>"https://img.example.com/cover.jpg"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">vod_remarks</td>
+                <td class="td-type">string</td>
+                <td>备注标签（如 "HD"、"完结"、更新集数）</td>
+                <td>
+                  <code>"HD"</code>
+                  /
+                  <code>"更新至第12集"</code>
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key">type_name</td>
+                <td class="td-type">string</td>
+                <td>分类名称（用于列表展示）</td>
+                <td><code>"电影"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">vod_year</td>
+                <td class="td-type">string</td>
+                <td>年份</td>
+                <td><code>"2023"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">vod_area</td>
+                <td class="td-type">string</td>
+                <td>地区</td>
+                <td><code>"中国大陆"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">vod_director</td>
+                <td class="td-type">string</td>
+                <td>导演（可多人，逗号分隔）</td>
+                <td><code>"郭帆"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">vod_actor</td>
+                <td class="td-type">string</td>
+                <td>主演（可多人，逗号分隔）</td>
+                <td><code>"吴京,李雪健,沙溢"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">vod_content</td>
+                <td class="td-type">string</td>
+                <td>剧情简介</td>
+                <td><code>"2058年，地球发动机建设进程启动..."</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">vod_play_from</td>
+                <td class="td-type">string</td>
+                <td>
+                  播放来源名称（线路名），多来源用
+                  <code>$$$</code>
+                  分隔
+                </td>
+                <td><code>"线路1$$$线路2$$$线路3"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">vod_play_url</td>
+                <td class="td-type">string</td>
+                <td>
+                  剧集 URL 列表，集与集之间用
+                  <code>#</code>
+                  ，按集名
+                  <code>$</code>
+                  URL 格式。多来源与 vod_play_from 对应，用
+                  <code>$$$</code>
+                  分隔
+                </td>
+                <td><code>"第1集$url1#第2集$url2$$$线路2第1集$url3#线路2第2集$url4"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">vod_tag</td>
+                <td class="td-type">string</td>
+                <td>
+                  特殊标签：
+                  <code>"folder"</code>
+                  表示此条目是一个目录（点进去载入子列表）
+                </td>
+                <td><code>"folder"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">style</td>
+                <td class="td-type">object</td>
+                <td>封面样式覆盖（详见下方 style 说明）</td>
+                <td><code>{"type":"rect"}</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">land</td>
+                <td class="td-type">number</td>
+                <td>
+                  封面比例快捷字段：
+                  <code>1</code>
+                  =横屏（16:9），
+                  <code>0</code>
+                  =竖屏
+                </td>
+                <td><code>1</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">circle</td>
+                <td class="td-type">number</td>
+                <td>
+                  圆形显示：
+                  <code>1</code>
+                  =圆形封面，
+                  <code>0</code>
+                  =矩形
+                </td>
+                <td><code>0</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">ratio</td>
+                <td class="td-type">number</td>
+                <td>
+                  封面宽高比（浮点数），如
+                  <code>1.778</code>
+                  = 16:9
+                </td>
+                <td><code>0.75</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>style 对象说明</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>style.type 值</th>
+                <th>显示效果</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">"rect"</td>
+                <td>标准矩形封面（默认，竖版海报）</td>
+              </tr>
+              <tr>
+                <td class="td-key">"square"</td>
+                <td>正方形封面（适合专辑/歌手头像）</td>
+              </tr>
+              <tr>
+                <td class="td-key">"thumb"</td>
+                <td>横版缩略图（适合综艺/新闻）</td>
+              </tr>
+              <tr>
+                <td class="td-key">"oval"</td>
+                <td>椭圆形封面</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ═══════════════ 05 PLAY FORMAT ═══════════════ -->
+      <section class="section" id="play-format">
+        <div class="section-num">05</div>
+        <h2>播放信息格式（vod_play_from / vod_play_url）</h2>
+
+        <p>
+          <span class="ic">vod_play_from</span>
+          和
+          <span class="ic">vod_play_url</span>
+          是点播最关键的字段，用于构建剧集列表和播放选项。
+        </p>
+
+        <h3>单来源（单线路）</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JSON</span>
+            <span class="code-desc">单线路剧集</span>
+          </div>
+          <pre><code>{
+  <span class="c-key">"vod_id"</span>:        <span class="c-str">"drama_456"</span>,
+  <span class="c-key">"vod_name"</span>:      <span class="c-str">"某电视剧"</span>,
+  <span class="c-hl">  <span class="c-key">"vod_play_from"</span>: <span class="c-str">"线路1"</span>,</span>
+  <span class="c-cmt">// 格式：集名$URL#集名$URL#...</span>
+  <span class="c-hl">  <span class="c-key">"vod_play_url"</span>:  <span class="c-str">"第1集$https://v.ex.com/ep1.m3u8#第2集$https://v.ex.com/ep2.m3u8#第3集$https://v.ex.com/ep3.m3u8"</span></span>
+}</code></pre>
+        </div>
+
+        <h3>多来源（多线路）</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JSON</span>
+            <span class="code-desc">多线路剧集，$$$ 分隔</span>
+          </div>
+          <pre><code>{
+  <span class="c-key">"vod_id"</span>:        <span class="c-str">"drama_456"</span>,
+  <span class="c-key">"vod_name"</span>:      <span class="c-str">"某电视剧"</span>,
+  <span class="c-cmt">// $$$ 分隔多个来源</span>
+  <span class="c-hl">  <span class="c-key">"vod_play_from"</span>: <span class="c-str">"线路1$$$线路2$$$线路3"</span>,</span>
+  <span class="c-cmt">// 与 vod_play_from 按顺序对应，同样用 $$$ 分隔</span>
+  <span class="c-hl">  <span class="c-key">"vod_play_url"</span>:  <span class="c-str">"第1集$url1a#第2集$url2a$$$第1集$url1b#第2集$url2b$$$第1集$url1c"</span></span>
+}</code></pre>
+        </div>
+
+        <h3>电影（单集）</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JSON</span>
+            <span class="code-desc">电影单集写法</span>
+          </div>
+          <pre><code>{
+  <span class="c-key">"vod_id"</span>:        <span class="c-str">"movie_789"</span>,
+  <span class="c-key">"vod_name"</span>:      <span class="c-str">"流浪地球2"</span>,
+  <span class="c-hl">  <span class="c-key">"vod_play_from"</span>: <span class="c-str">"高清播放"</span>,</span>
+  <span class="c-cmt">// 集名为空字符串或影片名均可，App 只会显示一集</span>
+  <span class="c-hl">  <span class="c-key">"vod_play_url"</span>:  <span class="c-str">"$https://v.example.com/wandering_earth_2.mp4"</span></span>
+}</code></pre>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-title">✅ playerContent 里返回的 url</div>
+          <code>playerContent()</code>
+          返回的
+          <code>url</code>
+          字段才是最终发送给播放器的真实流地址（m3u8/mp4 等）。
+          <code>vod_play_url</code>
+          里的地址是 Spider 的内部 ID 或直链，具体格式由你的 Spider 决定。
+        </div>
+      </section>
+
+      <!-- ═══════════════ 06 RESULT ═══════════════ -->
+      <section class="section" id="result">
+        <div class="section-num">06</div>
+        <h2>Result 返回结构</h2>
+
+        <p>
+          Spider 所有方法都通过 JSON 字符串返回一个
+          <span class="ic">Result</span>
+          对象（序列化后的 JSON），以下是各字段说明：
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>字段</th>
+                <th>类型</th>
+                <th>主要用途</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">class</td>
+                <td class="td-type">array</td>
+                <td><code>homeContent()</code></td>
+                <td>分类列表（Class 对象数组），用于首页分类导航</td>
+              </tr>
+              <tr>
+                <td class="td-key">list</td>
+                <td class="td-type">array</td>
+                <td>所有方法</td>
+                <td>视频对象列表（Vod 对象数组）</td>
+              </tr>
+              <tr>
+                <td class="td-key">filters</td>
+                <td class="td-type">object</td>
+                <td><code>homeContent()</code></td>
+                <td>筛选器字典，key 为 type_id，value 为 Filter 对象数组。详见第 07 节</td>
+              </tr>
+              <tr>
+                <td class="td-key">pagecount</td>
+                <td class="td-type">number</td>
+                <td><code>categoryContent()</code></td>
+                <td>总页数（用于分页导航）</td>
+              </tr>
+              <tr>
+                <td class="td-key">url</td>
+                <td class="td-type">string/object</td>
+                <td><code>playerContent()</code></td>
+                <td>最终播放 URL，或包含多个备用地址的对象</td>
+              </tr>
+              <tr>
+                <td class="td-key">header</td>
+                <td class="td-type">object</td>
+                <td><code>playerContent()</code></td>
+                <td>播放请求附带的 HTTP 请求头</td>
+              </tr>
+              <tr>
+                <td class="td-key">parse</td>
+                <td class="td-type">number</td>
+                <td><code>playerContent()</code></td>
+                <td>
+                  <code>0</code>
+                  =直接播放（默认），
+                  <code>1</code>
+                  =交给解析器（parses[]）再解析
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key">jx</td>
+                <td class="td-type">number</td>
+                <td><code>playerContent()</code></td>
+                <td>
+                  <code>1</code>
+                  =使用解析器（parse=1 的别名）
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key">format</td>
+                <td class="td-type">string</td>
+                <td><code>playerContent()</code></td>
+                <td>
+                  强制 MIME 类型：
+                  <code>"hls"</code>
+                  /
+                  <code>"mpd"</code>
+                  等
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key">click</td>
+                <td class="td-type">string</td>
+                <td><code>playerContent()</code></td>
+                <td>二次解析跳转 URL</td>
+              </tr>
+              <tr>
+                <td class="td-key">key</td>
+                <td class="td-type">string</td>
+                <td><code>playerContent()</code></td>
+                <td>DRM ClearKey 密钥（kid:key 或 JSON 字符串）</td>
+              </tr>
+              <tr>
+                <td class="td-key">drm</td>
+                <td class="td-type">object</td>
+                <td><code>playerContent()</code></td>
+                <td>DRM 配置对象（同直播 drm 字段格式）</td>
+              </tr>
+              <tr>
+                <td class="td-key">subs</td>
+                <td class="td-type">array</td>
+                <td>
+                  <code>playerContent()</code>
+                  /
+                  <code>detailContent()</code>
+                </td>
+                <td>字幕列表（Sub 对象数组，含 url/name/lang/format 字段）</td>
+              </tr>
+              <tr>
+                <td class="td-key">danmaku</td>
+                <td class="td-type">array / string</td>
+                <td>
+                  <code>playerContent()</code>
+                  /
+                  <code>detailContent()</code>
+                </td>
+                <td>弹幕数据 URL 或 XML 内容</td>
+              </tr>
+              <tr>
+                <td class="td-key">desc</td>
+                <td class="td-type">string</td>
+                <td><code>playerContent()</code></td>
+                <td>辅助描述信息（如集标题）</td>
+              </tr>
+              <tr>
+                <td class="td-key">flag</td>
+                <td class="td-type">string</td>
+                <td><code>playerContent()</code></td>
+                <td>指定使用的解析器名称（对应 parses[].name）</td>
+              </tr>
+              <tr>
+                <td class="td-key">msg</td>
+                <td class="td-type">string</td>
+                <td>所有方法</td>
+                <td>错误或提示信息，非空时 App 会弹出提示</td>
+              </tr>
+              <tr>
+                <td class="td-key">code</td>
+                <td class="td-type">number</td>
+                <td>所有方法</td>
+                <td>
+                  状态码，非 0 时
+                  <code>msg</code>
+                  才会显示
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>各方法返回示例</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JSON</span>
+            <span class="code-desc">homeContent(true) — 返回分类 + 筛选器</span>
+          </div>
+          <pre><code>{
+  <span class="c-key">"class"</span>: [
+    { <span class="c-key">"type_id"</span>: <span class="c-str">"1"</span>, <span class="c-key">"type_name"</span>: <span class="c-str">"电影"</span>,    <span class="c-key">"type_flag"</span>: <span class="c-str">"0"</span> },
+    { <span class="c-key">"type_id"</span>: <span class="c-str">"2"</span>, <span class="c-key">"type_name"</span>: <span class="c-str">"电视剧"</span>,  <span class="c-key">"type_flag"</span>: <span class="c-str">"0"</span> },
+    { <span class="c-key">"type_id"</span>: <span class="c-str">"3"</span>, <span class="c-key">"type_name"</span>: <span class="c-str">"综艺"</span>,    <span class="c-key">"type_flag"</span>: <span class="c-str">"0"</span> }
+  ],
+  <span class="c-key">"filters"</span>: {
+    <span class="c-str">"1"</span>: [
+      {
+        <span class="c-key">"key"</span>:   <span class="c-str">"area"</span>,
+        <span class="c-key">"name"</span>:  <span class="c-str">"地区"</span>,
+        <span class="c-key">"value"</span>: [
+          { <span class="c-key">"n"</span>: <span class="c-str">"全部"</span>, <span class="c-key">"v"</span>: <span class="c-str">""</span> },
+          { <span class="c-key">"n"</span>: <span class="c-str">"中国大陆"</span>, <span class="c-key">"v"</span>: <span class="c-str">"1"</span> },
+          { <span class="c-key">"n"</span>: <span class="c-str">"香港"</span>, <span class="c-key">"v"</span>: <span class="c-str">"2"</span> }
+        ]
+      },
+      {
+        <span class="c-key">"key"</span>:   <span class="c-str">"year"</span>,
+        <span class="c-key">"name"</span>:  <span class="c-str">"年份"</span>,
+        <span class="c-key">"init"</span>:  <span class="c-str">"2024"</span>,
+        <span class="c-key">"value"</span>: [
+          { <span class="c-key">"n"</span>: <span class="c-str">"全部"</span>, <span class="c-key">"v"</span>: <span class="c-str">""</span> },
+          { <span class="c-key">"n"</span>: <span class="c-str">"2025"</span>, <span class="c-key">"v"</span>: <span class="c-str">"2025"</span> },
+          { <span class="c-key">"n"</span>: <span class="c-str">"2024"</span>, <span class="c-key">"v"</span>: <span class="c-str">"2024"</span> }
+        ]
+      }
+    ]
+  }
+}</code></pre>
+        </div>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JSON</span>
+            <span class="code-desc">playerContent() — 直接播放</span>
+          </div>
+          <pre><code>{
+  <span class="c-key">"parse"</span>:  <span class="c-num">0</span>,
+  <span class="c-key">"url"</span>:    <span class="c-str">"https://v.example.com/stream.m3u8"</span>,
+  <span class="c-key">"header"</span>: { <span class="c-key">"Referer"</span>: <span class="c-str">"https://example.com/"</span> },
+  <span class="c-key">"format"</span>: <span class="c-str">"hls"</span>
+}</code></pre>
+        </div>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JSON</span>
+            <span class="code-desc">playerContent() — 交给解析器</span>
+          </div>
+          <pre><code>{
+  <span class="c-key">"parse"</span>: <span class="c-num">1</span>,
+  <span class="c-key">"url"</span>:   <span class="c-str">"https://v.youku.com/v_show/id_xxx.html"</span>,
+  <span class="c-key">"flag"</span>:  <span class="c-str">"youku"</span>
+}</code></pre>
+        </div>
+      </section>
+
+      <!-- ═══════════════ 07 FILTER ═══════════════ -->
+      <section class="section" id="filter">
+        <div class="section-num">07</div>
+        <h2>Class（分类）与 Filter（筛选）</h2>
+
+        <h3>Class 对象字段</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>字段</th>
+                <th>类型</th>
+                <th>说明</th>
+                <th>示例值</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">type_id</td>
+                <td class="td-type">string</td>
+                <td>
+                  分类 ID，传入
+                  <code>categoryContent(tid, ...)</code>
+                  的第一个参数
+                </td>
+                <td><code>"1"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">type_name</td>
+                <td class="td-type">string</td>
+                <td>分类显示名</td>
+                <td><code>"电影"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">type_flag</td>
+                <td class="td-type">string</td>
+                <td>
+                  是否有筛选器：
+                  <code>"0"</code>
+                  =无，
+                  <code>"1"</code>
+                  =有。设为 "1" 则 App 在该分类显示筛选按钮
+                </td>
+                <td><code>"1"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">type_extend</td>
+                <td class="td-type">string</td>
+                <td>
+                  额外参数，随 tid 一起传给
+                  <code>categoryContent()</code>
+                  （较少用）
+                </td>
+                <td><code>""</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Filter 对象字段</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>字段</th>
+                <th>类型</th>
+                <th>说明</th>
+                <th>示例值</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">key</td>
+                <td class="td-type">string</td>
+                <td>
+                  筛选条件键名，传入
+                  <code>categoryContent()</code>
+                  的
+                  <code>extend</code>
+                  HashMap 中
+                </td>
+                <td><code>"area"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">name</td>
+                <td class="td-type">string</td>
+                <td>筛选条件显示名</td>
+                <td><code>"地区"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">init</td>
+                <td class="td-type">string</td>
+                <td>默认选中项的值（对应 Value.v），不设则默认选第一项</td>
+                <td>
+                  <code>""</code>
+                  /
+                  <code>"2024"</code>
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key">value</td>
+                <td class="td-type">array</td>
+                <td>下拉选项列表（Value 对象数组）</td>
+                <td><code>[{"n":"全部","v":""},{"n":"大陆","v":"1"}]</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>Value 对象字段</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>字段</th>
+                <th>类型</th>
+                <th>说明</th>
+                <th>示例值</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">n</td>
+                <td class="td-type">string</td>
+                <td>显示名称（display name）</td>
+                <td><code>"中国大陆"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">v</td>
+                <td class="td-type">string</td>
+                <td>实际传参值（value），传入 extend HashMap</td>
+                <td><code>"1"</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>筛选器工作流程</h3>
+        <ul class="step-list">
+          <li>
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <div class="step-title">homeContent(true) 返回 filters{}</div>
+              <div class="step-desc">
+                <code>filters</code>
+                是一个 Map，key=type_id，value=Filter 数组。当 filter=true 时 App 需要展示筛选选项。
+              </div>
+            </div>
+          </li>
+          <li>
+            <div class="step-num">2</div>
+            <div class="step-content">
+              <div class="step-title">用户选择筛选条件</div>
+              <div class="step-desc">
+                App 把用户选择汇聚成 HashMap&lt;String,String&gt;，key=Filter.key，value=选中的
+                Value.v。
+              </div>
+            </div>
+          </li>
+          <li>
+            <div class="step-num">3</div>
+            <div class="step-content">
+              <div class="step-title">categoryContent(tid, pg, filter=true, extend) 被调用</div>
+              <div class="step-desc">
+                extend 参数包含所有选中的筛选条件，Spider 根据这些参数修改请求 URL。
+              </div>
+            </div>
+          </li>
+        </ul>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">Java</span>
+            <span class="code-desc">categoryContent() — 在 Spider 中使用 extend 筛选器</span>
+          </div>
+          <pre><code><span class="c-kw">@Override</span>
+<span class="c-kw">public</span> String <span class="c-tag">categoryContent</span>(String tid, String pg, <span class="c-kw">boolean</span> filter,
+                               HashMap&lt;String, String&gt; extend) <span class="c-kw">throws</span> Exception {
+    String area = extend.getOrDefault(<span class="c-str">"area"</span>, <span class="c-str">""</span>);
+    String year = extend.getOrDefault(<span class="c-str">"year"</span>, <span class="c-str">""</span>);
+    String url = <span class="c-str">"https://api.example.com/vod?type="</span> + tid
+               + <span class="c-str">"&pg="</span> + pg
+               + <span class="c-str">"&area="</span> + area
+               + <span class="c-str">"&year="</span> + year;
+    <span class="c-cmt">// fetch & build result...</span>
+}</code></pre>
+        </div>
+      </section>
+
+      <!-- ═══════════════ 08 PARSES ═══════════════ -->
+      <section class="section" id="parses">
+        <div class="section-num">08</div>
+        <h2>parses[] 解析器配置</h2>
+
+        <p>
+          解析器（par​ses）负责把 VIP 视频平台的播放页面 URL 解析成直链。Spider 在
+          <span class="ic">playerContent()</span>
+          中返回
+          <code>parse=1</code>
+          时，App 会根据视频 URL 匹配对应解析器。
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>字段</th>
+                <th>类型</th>
+                <th>必填</th>
+                <th>说明</th>
+                <th>示例值</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">name</td>
+                <td class="td-type">string</td>
+                <td class="td-req">必填</td>
+                <td>解析器名称（显示名 + Spider 返回的 flag 字段与此匹配）</td>
+                <td><code>"在线解析1"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">type</td>
+                <td class="td-type">number</td>
+                <td class="td-opt">可选</td>
+                <td>
+                  解析器类型：
+                  <code>0</code>
+                  =WebView 内嵌解析，
+                  <code>1</code>
+                  =JSON 接口解析，
+                  <code>2</code>
+                  =嗅探，
+                  <code>3</code>
+                  =JS 脚本，
+                  <code>4</code>
+                  =神嗅（自动选择最佳解析器）
+                </td>
+                <td><code>1</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">url</td>
+                <td class="td-type">string</td>
+                <td class="td-req">必填</td>
+                <td>
+                  解析服务 URL，type=1 时视频 URL 直接拼接到此 URL 末尾发起请求；type=0/2 时为
+                  WebView 加载的基地址
+                </td>
+                <td><code>"https://jx.example.com/?url="</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">ext</td>
+                <td class="td-type">object</td>
+                <td class="td-opt">可选</td>
+                <td>
+                  扩展配置对象，包含
+                  <code>flag</code>
+                  和
+                  <code>header</code>
+                  子字段
+                </td>
+                <td><code>{"flag":["youku","iqiyi"]}</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">ext.flag</td>
+                <td class="td-type">array</td>
+                <td class="td-opt">可选</td>
+                <td>
+                  此解析器负责的来源标记列表（与全局
+                  <code>flags[]</code>
+                  及 Spider 返回的
+                  <code>flag</code>
+                  字段匹配）
+                </td>
+                <td><code>["youku","iqiyi","bilibili"]</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">ext.header</td>
+                <td class="td-type">object</td>
+                <td class="td-opt">可选</td>
+                <td>调用解析接口时附加的请求头（如 Cookie、Authorization）</td>
+                <td><code>{"Cookie":"token=abc123"}</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>parse type 详解</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>type 值</th>
+                <th>名称</th>
+                <th>工作方式</th>
+                <th>适用场景</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">0</td>
+                <td>WebView</td>
+                <td>在 WebView 中加载页面，嗅探视频流 URL</td>
+                <td>有反爬的大平台（爱奇艺、优酷等）</td>
+              </tr>
+              <tr>
+                <td class="td-key">1</td>
+                <td>JSON 接口</td>
+                <td>直接 HTTP 请求解析接口，接口返回 JSON 含播放 URL</td>
+                <td>公开解析接口（免费 jx 服务）</td>
+              </tr>
+              <tr>
+                <td class="td-key">2</td>
+                <td>嗅探</td>
+                <td>加载请求链，从 HTTP 流量中嗅探视频文件请求</td>
+                <td>隐藏在页面 js 中的播放地址</td>
+              </tr>
+              <tr>
+                <td class="td-key">3</td>
+                <td>JS 脚本</td>
+                <td>执行自定义 QuickJS 脚本完成解析逻辑</td>
+                <td>有特殊解密逻辑的平台</td>
+              </tr>
+              <tr>
+                <td class="td-key">4</td>
+                <td>神（God）</td>
+                <td>App 自动尝试所有可用解析器</td>
+                <td>不确定需要哪个解析器时的兜底</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JSON</span>
+            <span class="code-desc">parses[] — 完整示例</span>
+          </div>
+          <pre><code>{
+  <span class="c-key">"parses"</span>: [
+    {
+      <span class="c-key">"name"</span>: <span class="c-str">"免费解析1"</span>,
+      <span class="c-key">"type"</span>: <span class="c-num">1</span>,
+      <span class="c-key">"url"</span>:  <span class="c-str">"https://jx.example.com/api/?url="</span>
+      <span class="c-cmt">// ext 未设则接受所有 flag</span>
+    },
+    {
+      <span class="c-key">"name"</span>: <span class="c-str">"youku专用解析"</span>,
+      <span class="c-key">"type"</span>: <span class="c-num">3</span>,
+      <span class="c-key">"url"</span>:  <span class="c-str">"https://jx2.example.com/youku.js"</span>,
+      <span class="c-key">"ext"</span>:  {
+        <span class="c-key">"flag"</span>: [<span class="c-str">"youku"</span>],
+        <span class="c-key">"header"</span>: { <span class="c-key">"Cookie"</span>: <span class="c-str">"yk_token=abc"</span> }
+      }
+    },
+    {
+      <span class="c-key">"name"</span>: <span class="c-str">"WebView嗅探"</span>,
+      <span class="c-key">"type"</span>: <span class="c-num">0</span>,
+      <span class="c-key">"url"</span>:  <span class="c-str">"https://jx3.example.com/"</span>,
+      <span class="c-key">"ext"</span>:  { <span class="c-key">"flag"</span>: [<span class="c-str">"iqiyi"</span>, <span class="c-str">"bilibili"</span>] }
+    }
+  ],
+  <span class="c-cmt">// 全局 flag：URL 中含有这些关键词才走解析</span>
+  <span class="c-key">"flags"</span>: [<span class="c-str">"youku.com"</span>, <span class="c-str">"iqiyi.com"</span>, <span class="c-str">"bilibili.com"</span>, <span class="c-str">"v.qq.com"</span>]
+}</code></pre>
+        </div>
+      </section>
+
+      <!-- ═══════════════ 09 GLOBAL FIELDS ═══════════════ -->
+      <section class="section" id="global-fields">
+        <div class="section-num">09</div>
+        <h2>全局网络控制字段</h2>
+
+        <p>以下顶层字段作用于整个 App 的网络层，与直播/点播均相关。</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>字段</th>
+                <th>类型</th>
+                <th>说明</th>
+                <th>示例值</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">headers</td>
+                <td class="td-type">array</td>
+                <td>OkHttp 响应拦截器注入头，对所有出站请求的响应生效（常用于解决跨域）</td>
+                <td><code>[{"name":"Access-Control-Allow-Origin","value":"*"}]</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">proxy</td>
+                <td class="td-type">array</td>
+                <td>
+                  HTTP 代理配置列表，字段：host, port, username, password,
+                  regex（可选：仅匹配正则的请求走代理）
+                </td>
+                <td><code>[{"host":"127.0.0.1","port":7890}]</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">rules</td>
+                <td class="td-type">array</td>
+                <td>
+                  URL 正则替换规则，每个对象含
+                  <code>regex</code>
+                  （匹配模式）和
+                  <code>replace</code>
+                  （替换值）
+                </td>
+                <td><code>[{"regex":"http://","replace":"https://"}]</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">hosts</td>
+                <td class="td-type">array</td>
+                <td>
+                  自定义 DNS 映射，格式
+                  <code>"IP 域名"</code>
+                  （类似 hosts 文件）
+                </td>
+                <td><code>["1.2.3.4 api.example.com"]</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">doh</td>
+                <td class="td-type">array</td>
+                <td>DNS over HTTPS 配置，字段：name, url（DoH 服务地址）</td>
+                <td><code>[{"name":"阿里","url":"https://dns.alidns.com/dns-query"}]</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">ads</td>
+                <td class="td-type">array</td>
+                <td>广告 URL 关键词黑名单，URL 中包含任一关键词则拦截该请求</td>
+                <td><code>["ad.douyin.com","tracking.qq.com"]</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">flags</td>
+                <td class="td-type">array</td>
+                <td>触发解析器的来源标识（URL 关键词），URL 中含有这些词时交给 parses[] 处理</td>
+                <td><code>["youku.com","iqiyi.com","bilibili.com"]</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">wallpaper</td>
+                <td class="td-type">string</td>
+                <td>App 壁纸图片 URL</td>
+                <td><code>"https://example.com/bg.jpg"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">logo</td>
+                <td class="td-type">string</td>
+                <td>全局台标前缀（直播用）</td>
+                <td><code>"https://img.example.com/logos/"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">epg</td>
+                <td class="td-type">string</td>
+                <td>全局 EPG 订阅地址（直播用）</td>
+                <td><code>"https://epg.example.com/e.xml"</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">notice</td>
+                <td class="td-type">string</td>
+                <td>配置更新公告，App 启动时展示</td>
+                <td><code>"2026-01-01 更新内容..."</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ═══════════════ 10 EXAMPLE ═══════════════ -->
+      <section class="section" id="vod-example">
+        <div class="section-num">10</div>
+        <h2>完整配置示例</h2>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JSON</span>
+            <span class="code-desc">config.json — 完整点播 + 直播配置</span>
+          </div>
+          <pre><code>{
+  <span class="c-key">"spider"</span>: <span class="c-str">"https://cdn.example.com/spider.jar"</span>,
+
+  <span class="c-key">"sites"</span>: [
+    {
+      <span class="c-key">"key"</span>:        <span class="c-str">"site_a"</span>,
+      <span class="c-key">"name"</span>:       <span class="c-str">"站点 A"</span>,
+      <span class="c-key">"type"</span>:       <span class="c-num">3</span>,
+      <span class="c-key">"api"</span>:        <span class="c-str">"csp_SiteA"</span>,
+      <span class="c-key">"ext"</span>:        <span class="c-str">"https://cdn.example.com/ext_a.json"</span>,
+      <span class="c-key">"searchable"</span>: <span class="c-num">1</span>,
+      <span class="c-key">"changeable"</span>: <span class="c-num">1</span>,
+      <span class="c-key">"categories"</span>: [<span class="c-str">"电影"</span>, <span class="c-str">"电视剧"</span>]
+    },
+    {
+      <span class="c-key">"key"</span>:        <span class="c-str">"site_b_js"</span>,
+      <span class="c-key">"name"</span>:       <span class="c-str">"站点 B（JS）"</span>,
+      <span class="c-key">"type"</span>:       <span class="c-num">1</span>,
+      <span class="c-key">"api"</span>:        <span class="c-str">"csp_SiteB"</span>,
+      <span class="c-key">"jar"</span>:        <span class="c-str">"https://cdn.example.com/siteb.js"</span>,
+      <span class="c-key">"searchable"</span>: <span class="c-num">1</span>,
+      <span class="c-key">"timeout"</span>:    <span class="c-num">20</span>
+    }
+  ],
+
+  <span class="c-key">"lives"</span>: [
+    {
+      <span class="c-key">"name"</span>: <span class="c-str">"直播订阅"</span>,
+      <span class="c-key">"url"</span>:  <span class="c-str">"https://cdn.example.com/live.m3u"</span>,
+      <span class="c-key">"epg"</span>:  <span class="c-str">"https://epg.example.com/e.xml"</span>
+    }
+  ],
+
+  <span class="c-key">"parses"</span>: [
+    {
+      <span class="c-key">"name"</span>: <span class="c-str">"通用解析"</span>,
+      <span class="c-key">"type"</span>: <span class="c-num">1</span>,
+      <span class="c-key">"url"</span>:  <span class="c-str">"https://jx.example.com/?url="</span>
+    }
+  ],
+
+  <span class="c-key">"flags"</span>: [<span class="c-str">"youku.com"</span>, <span class="c-str">"iqiyi.com"</span>, <span class="c-str">"bilibili.com"</span>, <span class="c-str">"v.qq.com"</span>],
+
+  <span class="c-key">"ads"</span>: [<span class="c-str">"ads.example.com"</span>, <span class="c-str">"tracker.example.com"</span>],
+
+  <span class="c-key">"rules"</span>: [
+    { <span class="c-key">"regex"</span>: <span class="c-str">"\\bhttp://"</span>, <span class="c-key">"replace"</span>: <span class="c-str">"https://"</span> }
+  ],
+
+  <span class="c-key">"doh"</span>: [
+    { <span class="c-key">"name"</span>: <span class="c-str">"Cloudflare"</span>, <span class="c-key">"url"</span>: <span class="c-str">"https://1.1.1.1/dns-query"</span> }
+  ],
+
+  <span class="c-key">"epg"</span>:      <span class="c-str">"https://epg.example.com/all.xml"</span>,
+  <span class="c-key">"notice"</span>:   <span class="c-str">"配置更新于 2026-01-01"</span>,
+  <span class="c-key">"wallpaper"</span>: <span class="c-str">"https://cdn.example.com/bg.jpg"</span>
+}</code></pre>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        FongMi/TV 开发文档 · 基于
+        <a href="https://github.com/FongMi/TV" style="color: var(--accent); text-decoration: none">
+          FongMi/TV (release 分支)
+        </a>
+        源码整理
+      </p>
+    </footer>
+
+    <script src="main.js" defer></script>
+  </body>
+</html>

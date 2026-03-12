@@ -1,0 +1,1636 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spider 编写 · FongMi/TV 开发文档</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Noto+Serif+SC:wght@400;700;900&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <header>
+      <div class="header-grid">
+        <div>
+          <div class="badge">Spider 编写 / Spider Development Guide</div>
+          <h1>
+            FongMi
+            <span>/TV</span>
+            Spider
+            <br />
+            编写完全指南
+          </h1>
+          <p class="subtitle">
+            从零到一编写 JAR（Java/Kotlin）、JS（QuickJS）、Python（Chaquopy）三种
+            Spider，涵盖每个接口方法的参数格式、返回结构与真实代码示例。
+          </p>
+        </div>
+        <div class="version-tag">Based on FongMi/TV · 2026</div>
+      </div>
+    </header>
+
+    <nav>
+      <ul>
+        <li><a href="index.html">概览</a></li>
+        <li><a href="live.html">直播配置</a></li>
+        <li><a href="vod.html">点播配置</a></li>
+        <li><a href="spider.html">Spider 编写</a></li>
+      </ul>
+    </nav>
+
+    <main>
+      <!-- TOC -->
+      <div class="toc" style="margin-top: 48px">
+        <div class="toc-title">目录 · Table of Contents</div>
+        <a href="#types">
+          <span class="toc-dot"></span>
+          01 · Spider 类型总览
+        </a>
+        <a href="#api-ref">
+          <span class="toc-dot"></span>
+          02 · Spider 接口方法完整参考
+        </a>
+        <a href="#jar">
+          <span class="toc-dot"></span>
+          03 · JAR Spider（Java / Kotlin）
+        </a>
+        <a href="#js">
+          <span class="toc-dot"></span>
+          04 · JS Spider（QuickJS）
+        </a>
+        <a href="#python">
+          <span class="toc-dot"></span>
+          05 · Python Spider（Chaquopy）
+        </a>
+        <a href="#utils">
+          <span class="toc-dot"></span>
+          06 · 工具函数 API（req / pd / pdfh / pdfa）
+        </a>
+        <a href="#live-spider">
+          <span class="toc-dot"></span>
+          07 · Live Spider（liveContent）
+        </a>
+        <a href="#proxy-method">
+          <span class="toc-dot"></span>
+          08 · proxy() 本地代理方法
+        </a>
+        <a href="#patterns">
+          <span class="toc-dot"></span>
+          09 · 常见模式与调试技巧
+        </a>
+      </div>
+
+      <!-- ═══════════════ 01 TYPES ═══════════════ -->
+      <section class="section" id="types">
+        <div class="section-num">01</div>
+        <h2>Spider 类型总览</h2>
+
+        <p>FongMi/TV 支持 3 种可扩展 Spider 运行时，以及 1 种内置（无需代码）方案：</p>
+
+        <div class="card-grid">
+          <div class="card">
+            <div
+              class="card-tag"
+              style="
+                background: var(--accent3) 20;
+                color: var(--accent3);
+                border-color: var(--accent3) 40;
+              "
+            >
+              type=3 · JAR
+            </div>
+            <div class="card-title">JAR Spider</div>
+            <p>
+              Java 或 Kotlin 类继承
+              <code>Spider</code>
+              基类，打包为含 classes.dex 的 JAR 文件。性能最强，可调用完整 Android SDK 与第三方 Java
+              库。推荐用于高性能或签名需求。
+            </p>
+            <p>构建方式：Android Gradle 编译输出 release JAR/AAR，通过 DexClassLoader 动态加载。</p>
+          </div>
+          <div class="card">
+            <div
+              class="card-tag"
+              style="
+                background: var(--accent2) 20;
+                color: var(--accent2);
+                border-color: var(--accent2) 40;
+              "
+            >
+              type=1 · JS
+            </div>
+            <div class="card-title">JS Spider（QuickJS）</div>
+            <p>
+              JavaScript 文件，运行于嵌入式 QuickJS 引擎（ES2020+）。支持
+              <code>req()</code>
+              、
+              <code>pd()</code>
+              、
+              <code>CryptoJS</code>
+              、
+              <code>cheerio</code>
+              等内置工具。
+            </p>
+            <p>开发效率最高，适合大多数爬虫场景，免编译即可更新。</p>
+          </div>
+          <div class="card">
+            <div
+              class="card-tag"
+              style="
+                background: var(--accent) 20;
+                color: var(--accent);
+                border-color: var(--accent) 40;
+              "
+            >
+              type=2 · Python
+            </div>
+            <div class="card-title">Python Spider（Chaquopy）</div>
+            <p>
+              Python 3 脚本，运行于 Chaquopy 环境。可使用
+              <code>requests</code>
+              、
+              <code>BeautifulSoup</code>
+              、
+              <code>lxml</code>
+              等标准 Python 库。
+            </p>
+            <p>适合已有 Python 爬虫代码的快速移植；需要 App 自带 Chaquopy 支持。</p>
+          </div>
+          <div class="card">
+            <div
+              class="card-tag"
+              style="
+                background: var(--text-dim) 20;
+                color: var(--text-dim);
+                border-color: var(--text-dim) 40;
+              "
+            >
+              type=0 · 内置
+            </div>
+            <div class="card-title">内置 API（无 Spider）</div>
+            <p>
+              直接对接苹果 CMS XML 或 JSON API 格式（
+              <code>&lt;rss&gt;</code>
+              /
+              <code>class[]</code>
+              /
+              <code>list[]</code>
+              ）。无需任何代码，
+              <code>api</code>
+              字段直接填接口根 URL。
+            </p>
+            <p>适合已有标准 CMS 接口的站点，零开发成本。</p>
+          </div>
+        </div>
+
+        <h3>选型参考</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>维度</th>
+                <th>JAR</th>
+                <th>JS</th>
+                <th>Python</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>开发语言</td>
+                <td>Java / Kotlin</td>
+                <td>JavaScript (ES2020)</td>
+                <td>Python 3</td>
+              </tr>
+              <tr>
+                <td>运行时</td>
+                <td>Android ART（DexClassLoader）</td>
+                <td>QuickJS 引擎</td>
+                <td>Chaquopy</td>
+              </tr>
+              <tr>
+                <td>性能</td>
+                <td>⭐⭐⭐ 最佳</td>
+                <td>⭐⭐ 良好</td>
+                <td>⭐ 一般</td>
+              </tr>
+              <tr>
+                <td>更新方式</td>
+                <td>远程 JAR URL（需重新编译）</td>
+                <td>远程 JS URL（即改即生效）</td>
+                <td>远程 PY URL（即改即生效）</td>
+              </tr>
+              <tr>
+                <td>第三方库</td>
+                <td>OkHttp、Jsoup、内置完整</td>
+                <td>内置 CryptoJS、cheerio</td>
+                <td>requests、bs4、lxml 等</td>
+              </tr>
+              <tr>
+                <td>HTTPS / TLS</td>
+                <td>完全支持（OkHttp）</td>
+                <td>通过 Java 桥接</td>
+                <td>通过 Python requests</td>
+              </tr>
+              <tr>
+                <td>推荐场景</td>
+                <td>高频请求、签名加密、复杂业务</td>
+                <td>通用爬虫、快速迭代</td>
+                <td>已有 Python 代码移植</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ═══════════════ 02 API REF ═══════════════ -->
+      <section class="section" id="api-ref">
+        <div class="section-num">02</div>
+        <h2>Spider 接口方法完整参考</h2>
+
+        <p>
+          所有 Spider 继承自
+          <span class="ic">com.github.catvod.crawler.Spider</span>
+          抽象类，默认实现返回空结果。只需覆盖（Override）所需方法。
+        </p>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>方法签名</th>
+                <th>调用时机</th>
+                <th>参数说明</th>
+                <th>返回格式</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key"><code>init(ctx, extend)</code></td>
+                <td>Spider 首次创建时</td>
+                <td>
+                  <code>extend</code>
+                  = site.ext 字段的值（已 fetch 的字符串）
+                </td>
+                <td>无返回值</td>
+              </tr>
+              <tr>
+                <td class="td-key"><code>homeContent(filter)</code></td>
+                <td>打开站点首页</td>
+                <td>
+                  <code>filter</code>
+                  =true 时需要返回
+                  <code>filters{}</code>
+                </td>
+                <td>
+                  Result JSON，含
+                  <code>class[]</code>
+                  分类列表（必须），可含
+                  <code>list[]</code>
+                  推荐视频，可含
+                  <code>filters{}</code>
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key"><code>homeVideoContent()</code></td>
+                <td>首页加载更多推荐视频</td>
+                <td>无</td>
+                <td>
+                  Result JSON，含
+                  <code>list[]</code>
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key"><code>categoryContent(tid, pg, filter, extend)</code></td>
+                <td>进入分类 / 翻页 / 切换筛选</td>
+                <td>
+                  <code>tid</code>
+                  =分类 ID，
+                  <code>pg</code>
+                  =页码（从 "1" 开始），
+                  <code>filter</code>
+                  =是否有筛选，
+                  <code>extend</code>
+                  =用户筛选条件 Map
+                </td>
+                <td>
+                  Result JSON，含
+                  <code>list[]</code>
+                  和
+                  <code>pagecount</code>
+                  （总页数）
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key"><code>detailContent(ids)</code></td>
+                <td>打开视频详情页</td>
+                <td>
+                  <code>ids</code>
+                  =vod_id 列表（通常只有一个元素）
+                </td>
+                <td>
+                  Result JSON，含
+                  <code>list[]</code>
+                  （完整 Vod，含 vod_play_from/url）
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key"><code>searchContent(key, quick)</code></td>
+                <td>搜索（基础版）</td>
+                <td>
+                  <code>key</code>
+                  =关键词，
+                  <code>quick</code>
+                  =是否快速搜索（不翻页）
+                </td>
+                <td>
+                  Result JSON，含
+                  <code>list[]</code>
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key"><code>searchContent(key, quick, pg)</code></td>
+                <td>搜索（分页版）</td>
+                <td>
+                  同上 +
+                  <code>pg</code>
+                  =当前页码
+                </td>
+                <td>
+                  Result JSON，含
+                  <code>list[]</code>
+                  和
+                  <code>pagecount</code>
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key"><code>playerContent(flag, id, vipFlags)</code></td>
+                <td>点击剧集播放</td>
+                <td>
+                  <code>flag</code>
+                  =来源名（vod_play_from 中的一项），
+                  <code>id</code>
+                  =集 URL/ID（vod_play_url 中的值），
+                  <code>vipFlags</code>
+                  =全局 flags 列表
+                </td>
+                <td>
+                  Result JSON，含
+                  <code>url</code>
+                  （直链）或
+                  <code>parse=1</code>
+                  （交解析器），可含
+                  <code>header</code>
+                  、
+                  <code>format</code>
+                  、
+                  <code>key</code>
+                  （DRM）、
+                  <code>subs</code>
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key"><code>liveContent(url)</code></td>
+                <td>直播频道播放</td>
+                <td>
+                  <code>url</code>
+                  =直播频道 URL
+                </td>
+                <td>JSON 字符串（含直播流地址）或直接返回重写后的 URL</td>
+              </tr>
+              <tr>
+                <td class="td-key"><code>manualVideoCheck()</code></td>
+                <td>决定是否手动检测视频格式</td>
+                <td>无</td>
+                <td>boolean，true=App 手动嗅探；false=依赖 Content-Type 自动判断</td>
+              </tr>
+              <tr>
+                <td class="td-key"><code>isVideoFormat(url)</code></td>
+                <td>每次嗅探到 URL 时调用</td>
+                <td>
+                  <code>url</code>
+                  =待判断 URL
+                </td>
+                <td>boolean，true=这是视频 URL 停止嗅探</td>
+              </tr>
+              <tr>
+                <td class="td-key"><code>proxy(params)</code></td>
+                <td>本地代理请求到达时</td>
+                <td>
+                  <code>params</code>
+                  =请求参数 Map（from App 内置 local server）
+                </td>
+                <td>Object[] = {statusCode, contentType, responseBody}</td>
+              </tr>
+              <tr>
+                <td class="td-key"><code>action(action)</code></td>
+                <td>自定义动作（如刷新 Token）</td>
+                <td>
+                  <code>action</code>
+                  =动作标识字符串
+                </td>
+                <td>JSON 字符串</td>
+              </tr>
+              <tr>
+                <td class="td-key"><code>destroy()</code></td>
+                <td>Spider 被销毁前</td>
+                <td>无</td>
+                <td>无（释放资源）</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout callout-info">
+          <div class="callout-title">ℹ️ siteKey 字段</div>
+          Spider 基类有一个
+          <code>public String siteKey</code>
+          字段，由加载器在实例化后自动写入当前站点的
+          <code>key</code>
+          值。你可以在 Spider 内部通过
+          <code>this.siteKey</code>
+          （Java）或
+          <code>siteKey</code>
+          （JS）读取，用于多站点共享一个 Spider 类时区分站点。
+        </div>
+      </section>
+
+      <!-- ═══════════════ 03 JAR ═══════════════ -->
+      <section class="section" id="jar">
+        <div class="section-num">03</div>
+        <h2>JAR Spider（Java / Kotlin）</h2>
+
+        <h3>项目配置</h3>
+        <ul class="step-list">
+          <li>
+            <div class="step-num">1</div>
+            <div class="step-content">
+              <div class="step-title">新建 Android Library 模块</div>
+              <div class="step-desc">
+                在 Android Studio 创建空 Library（不是 Application）。
+                <code>compileSdk</code>
+                建议 34 以上。
+              </div>
+            </div>
+          </li>
+          <li>
+            <div class="step-num">2</div>
+            <div class="step-content">
+              <div class="step-title">添加 catvod 依赖</div>
+              <div class="step-desc">
+                在
+                <code>build.gradle</code>
+                中添加 catvod 核心依赖（提供 Spider 基类、OkHttp 客户端、工具函数等）。
+              </div>
+            </div>
+          </li>
+          <li>
+            <div class="step-num">3</div>
+            <div class="step-content">
+              <div class="step-title">创建 Spider 类</div>
+              <div class="step-desc">
+                类名以
+                <code>csp_</code>
+                开头（约定，非强制），重写所需方法。
+              </div>
+            </div>
+          </li>
+          <li>
+            <div class="step-num">4</div>
+            <div class="step-content">
+              <div class="step-title">打包为 JAR（含 DEX）</div>
+              <div class="step-desc">
+                通过自定义 Gradle Task 将 classes.dex 打包进 JAR，确保 DexClassLoader 能加载。
+              </div>
+            </div>
+          </li>
+        </ul>
+
+        <h3>build.gradle 配置</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">Groovy</span>
+            <span class="code-desc">build.gradle（Library 模块）</span>
+          </div>
+          <pre><code>plugins {
+    id <span class="c-str">'com.android.library'</span>
+}
+
+android {
+    compileSdk <span class="c-num">34</span>
+    defaultConfig {
+        minSdk <span class="c-num">21</span>
+    }
+}
+
+dependencies {
+    <span class="c-cmt">// 提供 Spider 基类、OkHttp 包装、工具函数</span>
+    compileOnly <span class="c-str">'com.github.catvod:catvod:最新版本'</span>
+    <span class="c-cmt">// 常用工具（非必须，catvod 内已有 okhttp）</span>
+    compileOnly <span class="c-str">'com.squareup.okhttp3:okhttp:4.12.0'</span>
+    compileOnly <span class="c-str">'org.jsoup:jsoup:1.17.2'</span>
+}
+
+<span class="c-cmt">// 打包为含 DEX 的 JAR Task</span>
+task makeJar(type: Jar, dependsOn: [<span class="c-str">'assembleRelease'</span>]) {
+    archiveFileName = <span class="c-str">"spider.jar"</span>
+    from zipTree(<span class="c-str">"build/outputs/aar/${project.name}-release.aar"</span>)
+    include <span class="c-str">'classes.dex'</span>, <span class="c-str">'classes*.dex'</span>
+}</code></pre>
+        </div>
+
+        <h3>完整 Spider 示例（Java）</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">Java</span>
+            <span class="code-desc">csp_DemoSite.java — 基础点播 Spider</span>
+          </div>
+          <pre><code><span class="c-kw">import</span> android.content.Context;
+<span class="c-kw">import</span> com.github.catvod.crawler.Spider;
+<span class="c-kw">import</span> okhttp3.OkHttpClient;
+<span class="c-kw">import</span> okhttp3.Request;
+<span class="c-kw">import</span> org.json.JSONArray;
+<span class="c-kw">import</span> org.json.JSONObject;
+<span class="c-kw">import</span> java.util.HashMap;
+<span class="c-kw">import</span> java.util.List;
+
+<span class="c-kw">public class</span> <span class="c-tag">csp_DemoSite</span> <span class="c-kw">extends</span> Spider {
+
+    <span class="c-kw">private static final</span> String BASE_URL = <span class="c-str">"https://api.example.com"</span>;
+    <span class="c-kw">private</span> OkHttpClient http;
+    <span class="c-kw">private</span> String token = <span class="c-str">""</span>;
+
+    <span class="c-cmt">//  初始化（extend = site.ext 字段）</span>
+    <span class="c-kw">@Override</span>
+    <span class="c-kw">public void</span> <span class="c-tag">init</span>(Context context, String extend) <span class="c-kw">throws</span> Exception {
+        http = client();          <span class="c-cmt">// 使用基类提供的安全 OkHttp 客户端</span>
+        <span class="c-cmt">// extend 可以是 URL 或 JSON 字符串，自行解析</span>
+        <span class="c-kw">if</span> (extend != <span class="c-kw">null</span> &amp;&amp; extend.startsWith(<span class="c-str">"http"</span>)) {
+            String body = http.newCall(<span class="c-kw">new</span> Request.Builder().url(extend).build())
+                              .execute().body().string();
+            token = <span class="c-kw">new</span> JSONObject(body).optString(<span class="c-str">"token"</span>);
+        }
+    }
+
+    <span class="c-cmt">//  首页：返回分类列表</span>
+    <span class="c-kw">@Override</span>
+    <span class="c-kw">public</span> String <span class="c-tag">homeContent</span>(<span class="c-kw">boolean</span> filter) <span class="c-kw">throws</span> Exception {
+        JSONObject resp = get(BASE_URL + <span class="c-str">"/home"</span>);
+        JSONObject result = <span class="c-kw">new</span> JSONObject();
+        JSONArray classes = <span class="c-kw">new</span> JSONArray();
+        JSONArray cats = resp.getJSONArray(<span class="c-str">"categories"</span>);
+        <span class="c-kw">for</span> (<span class="c-kw">int</span> i = 0; i &lt; cats.length(); i++) {
+            JSONObject item = cats.getJSONObject(i);
+            classes.put(<span class="c-kw">new</span> JSONObject()
+                .put(<span class="c-str">"type_id"</span>,   item.getString(<span class="c-str">"id"</span>))
+                .put(<span class="c-str">"type_name"</span>, item.getString(<span class="c-str">"name"</span>))
+                .put(<span class="c-str">"type_flag"</span>, <span class="c-str">"1"</span>));         <span class="c-cmt">// 1=有筛选器</span>
+        }
+        result.put(<span class="c-str">"class"</span>, classes);
+        <span class="c-kw">if</span> (filter) result.put(<span class="c-str">"filters"</span>, buildFilters(resp));
+        <span class="c-kw">return</span> result.toString();
+    }
+
+    <span class="c-cmt">//  分类页：返回列表 + 总页数</span>
+    <span class="c-kw">@Override</span>
+    <span class="c-kw">public</span> String <span class="c-tag">categoryContent</span>(
+            String tid, String pg, <span class="c-kw">boolean</span> filter,
+            HashMap&lt;String, String&gt; extend) <span class="c-kw">throws</span> Exception {
+        String area = extend.getOrDefault(<span class="c-str">"area"</span>, <span class="c-str">""</span>);
+        String year = extend.getOrDefault(<span class="c-str">"year"</span>, <span class="c-str">""</span>);
+        JSONObject resp = get(BASE_URL + <span class="c-str">"/vod?type="</span> + tid + <span class="c-str">"&amp;pg="</span> + pg
+                           + <span class="c-str">"&amp;area="</span> + area + <span class="c-str">"&amp;year="</span> + year);
+        <span class="c-kw">return</span> buildVodList(resp).toString();
+    }
+
+    <span class="c-cmt">//  详情页：返回完整 Vod（含播放 URL）</span>
+    <span class="c-kw">@Override</span>
+    <span class="c-kw">public</span> String <span class="c-tag">detailContent</span>(List&lt;String&gt; ids) <span class="c-kw">throws</span> Exception {
+        JSONObject resp = get(BASE_URL + <span class="c-str">"/detail?id="</span> + ids.get(0));
+        JSONObject vod = resp.getJSONObject(<span class="c-str">"vod"</span>);
+        JSONArray eps = vod.getJSONArray(<span class="c-str">"episodes"</span>);
+        <span class="c-cmt">// 播放信息：多集用 # 分隔，集名$URL 格式</span>
+        StringBuilder playUrl = <span class="c-kw">new</span> StringBuilder();
+        <span class="c-kw">for</span> (<span class="c-kw">int</span> i = 0; i &lt; eps.length(); i++) {
+            <span class="c-kw">if</span> (i &gt; 0) playUrl.append(<span class="c-str">"#"</span>);
+            JSONObject ep = eps.getJSONObject(i);
+            playUrl.append(ep.getString(<span class="c-str">"name"</span>)).append(<span class="c-str">"$"</span>).append(ep.getString(<span class="c-str">"url"</span>));
+        }
+        JSONObject item = <span class="c-kw">new</span> JSONObject()
+            .put(<span class="c-str">"vod_id"</span>,       ids.get(0))
+            .put(<span class="c-str">"vod_name"</span>,     vod.getString(<span class="c-str">"title"</span>))
+            .put(<span class="c-str">"vod_content"</span>,  vod.optString(<span class="c-str">"desc"</span>))
+            .put(<span class="c-str">"vod_pic"</span>,      vod.optString(<span class="c-str">"cover"</span>))
+            .put(<span class="c-str">"vod_year"</span>,     vod.optString(<span class="c-str">"year"</span>))
+            .put(<span class="c-str">"vod_actor"</span>,    vod.optString(<span class="c-str">"actors"</span>))
+            .put(<span class="c-str">"vod_director"</span>, vod.optString(<span class="c-str">"director"</span>))
+            .put(<span class="c-str">"vod_play_from"</span>, <span class="c-str">"线路1"</span>)
+            .put(<span class="c-str">"vod_play_url"</span>,  playUrl.toString());
+        <span class="c-kw">return new</span> JSONObject().put(<span class="c-str">"list"</span>, <span class="c-kw">new</span> JSONArray().put(item)).toString();
+    }
+
+    <span class="c-cmt">//  播放：返回真实直链</span>
+    <span class="c-kw">@Override</span>
+    <span class="c-kw">public</span> String <span class="c-tag">playerContent</span>(String flag, String id, List&lt;String&gt; vipFlags) <span class="c-kw">throws</span> Exception {
+        <span class="c-cmt">// 如果 id 已经是 m3u8/mp4 直链，直接返回</span>
+        <span class="c-kw">if</span> (id.contains(<span class="c-str">".m3u8"</span>) || id.contains(<span class="c-str">".mp4"</span>)) {
+            <span class="c-kw">return new</span> JSONObject()
+                .put(<span class="c-str">"parse"</span>, 0)
+                .put(<span class="c-str">"url"</span>, id)
+                .toString();
+        }
+        <span class="c-cmt">// 否则通过 API 解析</span>
+        JSONObject resp = get(BASE_URL + <span class="c-str">"/play?id="</span> + id);
+        <span class="c-kw">return new</span> JSONObject()
+            .put(<span class="c-str">"parse"</span>,  0)
+            .put(<span class="c-str">"url"</span>,    resp.getString(<span class="c-str">"url"</span>))
+            .put(<span class="c-str">"header"</span>, <span class="c-kw">new</span> JSONObject().put(<span class="c-str">"Referer"</span>, BASE_URL))
+            .toString();
+    }
+
+    <span class="c-cmt">//  搜索</span>
+    <span class="c-kw">@Override</span>
+    <span class="c-kw">public</span> String <span class="c-tag">searchContent</span>(String key, <span class="c-kw">boolean</span> quick) <span class="c-kw">throws</span> Exception {
+        JSONObject resp = get(BASE_URL + <span class="c-str">"/search?q="</span> + key);
+        <span class="c-kw">return</span> buildVodList(resp).toString();
+    }
+
+    <span class="c-cmt">//  工具函数</span>
+    <span class="c-kw">private</span> JSONObject <span class="c-tag">get</span>(String url) <span class="c-kw">throws</span> Exception {
+        Request req = <span class="c-kw">new</span> Request.Builder().url(url)
+            .header(<span class="c-str">"Authorization"</span>, <span class="c-str">"Bearer "</span> + token)
+            .build();
+        <span class="c-kw">return new</span> JSONObject(http.newCall(req).execute().body().string());
+    }
+
+    <span class="c-kw">private</span> JSONObject <span class="c-tag">buildVodList</span>(JSONObject resp) <span class="c-kw">throws</span> Exception {
+        JSONArray items = resp.getJSONArray(<span class="c-str">"list"</span>);
+        JSONArray list = <span class="c-kw">new</span> JSONArray();
+        <span class="c-kw">for</span> (<span class="c-kw">int</span> i = 0; i &lt; items.length(); i++) {
+            JSONObject item = items.getJSONObject(i);
+            list.put(<span class="c-kw">new</span> JSONObject()
+                .put(<span class="c-str">"vod_id"</span>,      item.getString(<span class="c-str">"id"</span>))
+                .put(<span class="c-str">"vod_name"</span>,    item.getString(<span class="c-str">"title"</span>))
+                .put(<span class="c-str">"vod_pic"</span>,     item.optString(<span class="c-str">"cover"</span>))
+                .put(<span class="c-str">"vod_remarks"</span>, item.optString(<span class="c-str">"tag"</span>)));
+        }
+        <span class="c-kw">return new</span> JSONObject()
+            .put(<span class="c-str">"list"</span>,      list)
+            .put(<span class="c-str">"pagecount"</span>, resp.optInt(<span class="c-str">"totalPage"</span>, 1));
+    }
+}</code></pre>
+        </div>
+      </section>
+
+      <!-- ═══════════════ 04 JS ═══════════════ -->
+      <section class="section" id="js">
+        <div class="section-num">04</div>
+        <h2>JS Spider（QuickJS）</h2>
+
+        <p>
+          JS Spider 是最流行的编写方式。文件为标准 JavaScript，通过暴露特定变量/函数让 App 识别
+          Spider 类。QuickJS 支持 ES2020+ 语法，包括 async/await、可选链、nullish coalescing 等。
+        </p>
+
+        <h3>基本结构</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JavaScript</span>
+            <span class="code-desc">spider.js — 最小可运行 JS Spider</span>
+          </div>
+          <pre><code><span class="c-cmt">// ── Spider 类（命名与配置中的 api 字段一致）</span>
+<span class="c-kw">var</span> csp_DemoSite = {
+
+    <span class="c-cmt">// ── 内部状态</span>
+    baseUrl: <span class="c-str">''</span>,
+    token:   <span class="c-str">''</span>,
+
+
+    <span class="c-cmt">// ── init：接收 extend（site.ext 的内容）</span>
+    init: <span class="c-kw">async function</span>(ext) {
+        <span class="c-cmt">// ext 可以是 URL（已自动 fetch）或 JSON 字符串</span>
+        <span class="c-kw">var</span> config = <span class="c-kw">typeof</span> ext === <span class="c-str">'string'</span> ? JSON.parse(ext) : ext;
+        this.baseUrl = config.url || <span class="c-str">'https://api.example.com'</span>;
+        this.token   = config.token || <span class="c-str">''</span>;
+    },
+
+
+    <span class="c-cmt">// ── 首页：返回分类列表 + 可选首页推荐</span>
+    homeContent: <span class="c-kw">async function</span>(filter) {
+        <span class="c-kw">var</span> resp = <span class="c-kw">await</span> req(this.baseUrl + <span class="c-str">'/home'</span>, {headers: this.headers()});
+        <span class="c-kw">var</span> data = JSON.parse(resp.content);
+
+        <span class="c-kw">var</span> classes = data.categories.map(c => ({
+            type_id:   c.id,
+            type_name: c.name,
+            type_flag: <span class="c-str">'1'</span>,     <span class="c-cmt">// 1 = 有筛选器</span>
+        }));
+
+        <span class="c-kw">var</span> filters = {};
+        <span class="c-kw">if</span> (filter) {
+            classes.forEach(c => {
+                filters[c.type_id] = [
+                    { key: <span class="c-str">'area'</span>, name: <span class="c-str">'地区'</span>, value: [
+                        {n:<span class="c-str">'全部'</span>,v:<span class="c-str">''</span>}, {n:<span class="c-str">'大陆'</span>,v:<span class="c-str">'1'</span>}, {n:<span class="c-str">'欧美'</span>,v:<span class="c-str">'2'</span>}
+                    ]},
+                    { key: <span class="c-str">'year'</span>, name: <span class="c-str">'年份'</span>, value: [
+                        {n:<span class="c-str">'全部'</span>,v:<span class="c-str">''</span>}, {n:<span class="c-str">'2025'</span>,v:<span class="c-str">'2025'</span>}, {n:<span class="c-str">'2024'</span>,v:<span class="c-str">'2024'</span>}
+                    ]}
+                ];
+            });
+        }
+        <span class="c-kw">return</span> JSON.stringify({ class: classes, filters });
+    },
+
+
+    <span class="c-cmt">// ── 分类页</span>
+    categoryContent: <span class="c-kw">async function</span>(tid, pg, filter, extend) {
+        <span class="c-kw">var</span> url = <span class="c-str">`${this.baseUrl}/vod?type=${tid}&pg=${pg}&area=${extend.area||''}&year=${extend.year||''}`</span>;
+        <span class="c-kw">var</span> resp = <span class="c-kw">await</span> req(url, {headers: this.headers()});
+        <span class="c-kw">var</span> data = JSON.parse(resp.content);
+        <span class="c-kw">return</span> JSON.stringify({
+            list:      data.list.map(this.mapVod),
+            pagecount: data.totalPage,
+        });
+    },
+
+
+    <span class="c-cmt">// ── 详情页</span>
+    detailContent: <span class="c-kw">async function</span>(ids) {
+        <span class="c-kw">var</span> resp = <span class="c-kw">await</span> req(this.baseUrl + <span class="c-str">`/detail?id=${ids[0]}`</span>, {headers: this.headers()});
+        <span class="c-kw">var</span> vod  = JSON.parse(resp.content).vod;
+        <span class="c-kw">var</span> playUrl = vod.episodes.map(ep => <span class="c-str">`${ep.name}$${ep.url}`</span>).join(<span class="c-str">'#'</span>);
+        <span class="c-kw">return</span> JSON.stringify({ list: [{
+            vod_id:       ids[0],
+            vod_name:     vod.title,
+            vod_pic:      vod.cover,
+            vod_content:  vod.desc,
+            vod_year:     vod.year,
+            vod_actor:    vod.actors,
+            vod_director: vod.director,
+            vod_remarks:  vod.remarks,
+            vod_play_from: <span class="c-str">'线路1'</span>,
+            vod_play_url:  playUrl,
+        }]});
+    },
+
+
+    <span class="c-cmt">// ── 播放</span>
+    playerContent: <span class="c-kw">async function</span>(flag, id, vipFlags) {
+        <span class="c-kw">if</span> (id.includes(<span class="c-str">'.m3u8'</span>) || id.includes(<span class="c-str">'.mp4'</span>)) {
+            <span class="c-kw">return</span> JSON.stringify({ parse: 0, url: id });
+        }
+        <span class="c-kw">var</span> resp = <span class="c-kw">await</span> req(this.baseUrl + <span class="c-str">`/play?id=${id}`</span>, {headers: this.headers()});
+        <span class="c-kw">var</span> data = JSON.parse(resp.content);
+        <span class="c-kw">return</span> JSON.stringify({
+            parse: 0,
+            url:  data.url,
+            header: { Referer: this.baseUrl },
+        });
+    },
+
+
+    <span class="c-cmt">// ── 搜索</span>
+    searchContent: <span class="c-kw">async function</span>(key, quick) {
+        <span class="c-kw">var</span> resp = <span class="c-kw">await</span> req(this.baseUrl + <span class="c-str">`/search?q=${encodeURIComponent(key)}`</span>, {headers: this.headers()});
+        <span class="c-kw">var</span> data = JSON.parse(resp.content);
+        <span class="c-kw">return</span> JSON.stringify({ list: data.list.map(this.mapVod) });
+    },
+
+
+    <span class="c-cmt">// ── 内部工具</span>
+    headers: <span class="c-kw">function</span>() {
+        <span class="c-kw">return</span> { Authorization: <span class="c-str">`Bearer ${this.token}`</span>, <span class="c-str">'User-Agent'</span>: <span class="c-str">'TV/1.0'</span> };
+    },
+    mapVod: <span class="c-kw">function</span>(item) {
+        <span class="c-kw">return</span> {
+            vod_id:      item.id,
+            vod_name:    item.title,
+            vod_pic:     item.cover,
+            vod_remarks: item.tag,
+        };
+    },
+};</code></pre>
+        </div>
+
+        <h3>使用 HTML 解析工具（pd / pdfh / pdfa）</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JavaScript</span>
+            <span class="code-desc">HTML 爬虫：从页面直接解析数据</span>
+          </div>
+          <pre><code>detailContent: <span class="c-kw">async function</span>(ids) {
+    <span class="c-kw">var</span> resp = <span class="c-kw">await</span> req(<span class="c-str">`https://site.example.com/movie/${ids[0]}.html`</span>);
+    <span class="c-kw">var</span> html = resp.content;
+    <span class="c-kw">var</span> base = resp.url;           <span class="c-cmt">// 最终 URL（可能经过跳转）</span>
+
+    <span class="c-cmt">// pdfh：提取单个节点的内容（CSS 选择器 + 属性）</span>
+    <span class="c-kw">var</span> title = pdfh(html, <span class="c-str">'h1.title&&Text'</span>);
+    <span class="c-kw">var</span> cover = pdfh(html, <span class="c-str">'img.cover&&src'</span>);
+
+    <span class="c-cmt">// pdfa：提取多个节点列表（返回 HTML 片段数组）</span>
+    <span class="c-kw">var</span> epItems = pdfa(html, <span class="c-str">'.episodes&&a'</span>);
+    <span class="c-kw">var</span> playUrl = epItems.map(ep => {
+        <span class="c-kw">var</span> name = pdfh(ep, <span class="c-str">'a&&Text'</span>);
+        <span class="c-kw">var</span> href = pdfh(ep, <span class="c-str">'a&&href'</span>);
+        <span class="c-cmt">// pd：把相对 URL 拼成绝对 URL</span>
+        <span class="c-kw">return</span> <span class="c-str">`${name}$${pd(ep, 'a&&href', base)}`</span>;
+    }).join(<span class="c-str">'#'</span>);
+
+    <span class="c-kw">return</span> JSON.stringify({ list: [{
+        vod_id:        ids[0],
+        vod_name:      title,
+        vod_pic:       cover,
+        vod_play_from: <span class="c-str">'来源一'</span>,
+        vod_play_url:  playUrl,
+    }]});
+},</code></pre>
+        </div>
+
+        <h3>使用 CryptoJS 处理加密</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JavaScript</span>
+            <span class="code-desc">AES 解密播放地址</span>
+          </div>
+          <pre><code>playerContent: <span class="c-kw">async function</span>(flag, id, vipFlags) {
+    <span class="c-kw">var</span> resp = <span class="c-kw">await</span> req(<span class="c-str">`https://api.example.com/enc_play?id=${id}`</span>);
+    <span class="c-kw">var</span> data = JSON.parse(resp.content);
+
+    <span class="c-cmt">// AES-CBC 解密示例</span>
+    <span class="c-kw">var</span> key = CryptoJS.enc.Utf8.parse(<span class="c-str">'your_16_byte_key'</span>);
+    <span class="c-kw">var</span> iv  = CryptoJS.enc.Utf8.parse(<span class="c-str">'your_16_byte_ivv'</span>);
+    <span class="c-kw">var</span> decrypted = CryptoJS.AES.decrypt(data.enc_url, key, {
+        iv:   iv,
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7,
+    });
+    <span class="c-kw">var</span> url = decrypted.toString(CryptoJS.enc.Utf8);
+    <span class="c-kw">return</span> JSON.stringify({ parse: 0, url });
+},</code></pre>
+        </div>
+
+        <h3>JS Spider 内置全局 API 总览</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>全局变量 / 函数</th>
+                <th>说明</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">req(url, opts)</td>
+                <td>
+                  HTTP 请求，返回
+                  <code>{content, code, headers, url}</code>
+                  。opts 支持
+                  <code>method</code>
+                  、
+                  <code>headers</code>
+                  、
+                  <code>body</code>
+                  、
+                  <code>timeout</code>
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key">pdfh(html, rule)</td>
+                <td>
+                  从 HTML 提取单个值（CSS 选择器 + 属性，如
+                  <code>'div.title&&Text'</code>
+                  ）
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key">pdfa(html, rule)</td>
+                <td>从 HTML 提取节点列表（返回每个节点的 HTML 字符串数组）</td>
+              </tr>
+              <tr>
+                <td class="td-key">pd(html, rule, base)</td>
+                <td>提取 URL 并拼接 base，返回绝对 URL</td>
+              </tr>
+              <tr>
+                <td class="td-key">pdfl(html, rule, attr, base)</td>
+                <td>提取 URL 列表（数组形式）</td>
+              </tr>
+              <tr>
+                <td class="td-key">CryptoJS</td>
+                <td>内置 crypto-js 库（AES / DES / MD5 / SHA 等）</td>
+              </tr>
+              <tr>
+                <td class="td-key">cheerio</td>
+                <td>
+                  内置 cheerio（JQuery-like HTML 解析，
+                  <code>cheerio.load(html)</code>
+                  ）
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key">local_proxy</td>
+                <td>
+                  是否启用本地代理服务器（布尔），set true 后 App 向 Spider 的
+                  <code>proxy()</code>
+                  转发请求
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key">print(...args)</td>
+                <td>输出调试日志（Android Logcat tag: QuickJS）</td>
+              </tr>
+              <tr>
+                <td class="td-key">siteKey</td>
+                <td>
+                  当前站点的
+                  <code>key</code>
+                  字段（由 App 注入，用于多站点共享同一 JS）
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key">siteType</td>
+                <td>
+                  当前站点的
+                  <code>type</code>
+                  字段
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>req() 参数详解</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JavaScript</span>
+            <span class="code-desc">req() 完整参数</span>
+          </div>
+          <pre><code><span class="c-cmt">// GET</span>
+<span class="c-kw">var</span> r1 = <span class="c-kw">await</span> req(<span class="c-str">'https://api.example.com/list'</span>, {
+    headers:  { <span class="c-str">'Cookie'</span>: <span class="c-str">'sess=abc'</span> },
+    timeout:  <span class="c-num">15000</span>,       <span class="c-cmt">// ms</span>
+    redirect: <span class="c-kw">true</span>,         <span class="c-cmt">// 跟随重定向</span>
+    withRedirectUrl: <span class="c-kw">true</span>,  <span class="c-cmt">// 在 content 中附加最终 URL</span>
+});
+print(r1.code);      <span class="c-cmt">// HTTP 状态码</span>
+print(r1.content);   <span class="c-cmt">// 响应体字符串</span>
+print(r1.headers);   <span class="c-cmt">// 响应头 JSON 对象</span>
+print(r1.url);       <span class="c-cmt">// 最终 URL（经过重定向后）</span>
+
+<span class="c-cmt">// POST（表单）</span>
+<span class="c-kw">var</span> r2 = <span class="c-kw">await</span> req(<span class="c-str">'https://api.example.com/login'</span>, {
+    method: <span class="c-str">'post'</span>,
+    data:   { username: <span class="c-str">'admin'</span>, password: <span class="c-str">'123456'</span> },
+});
+
+<span class="c-cmt">// POST（JSON body）</span>
+<span class="c-kw">var</span> r3 = <span class="c-kw">await</span> req(<span class="c-str">'https://api.example.com/api'</span>, {
+    method:  <span class="c-str">'post'</span>,
+    body:    JSON.stringify({ id: <span class="c-str">'123'</span> }),
+    headers: { <span class="c-str">'Content-Type'</span>: <span class="c-str">'application/json'</span> },
+});</code></pre>
+        </div>
+      </section>
+
+      <!-- ═══════════════ 05 PYTHON ═══════════════ -->
+      <section class="section" id="python">
+        <div class="section-num">05</div>
+        <h2>Python Spider（Chaquopy）</h2>
+
+        <p>
+          Python Spider 运行于 Chaquopy 提供的 Python 3.8+ 环境。类继承关系与 JAR 相同，只是语言是
+          Python，且通过 Chaquopy 的 Android 桥接调用 Java 对象。
+        </p>
+
+        <div class="callout callout-warn">
+          <div class="callout-title">⚠️ 运行时要求</div>
+          Python Spider 需要 App 的
+          <code>build.gradle</code>
+          中集成了 Chaquopy 插件，并且设备上安装了完整的 Python 运行环境。部分精简版 App 不支持
+          Python Spider。
+        </div>
+
+        <h3>Python Spider 模板</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">Python</span>
+            <span class="code-desc">csp_DemoSite.py — Python Spider 基础结构</span>
+          </div>
+          <pre><code><span class="c-cmt"># -*- coding: utf-8 -*-</span>
+<span class="c-kw">import</span> json
+<span class="c-kw">import</span> requests
+<span class="c-kw">from</span> bs4 <span class="c-kw">import</span> BeautifulSoup
+
+
+<span class="c-kw">class</span> <span class="c-tag">Spider</span>:
+    <span class="c-str">"""FongMi/TV Python Spider 模板"""</span>
+
+    <span class="c-kw">def</span> <span class="c-tag">__init__</span>(self):
+        self.base_url = <span class="c-str">'https://api.example.com'</span>
+        self.session  = requests.Session()
+        self.session.headers.update({<span class="c-str">'User-Agent'</span>: <span class="c-str">'Mozilla/5.0'</span>})
+
+    <span class="c-kw">def</span> <span class="c-tag">init</span>(self, extend: str):
+        <span class="c-str">"""接收 site.ext 字段（字符串，可以是 URL 已 fetch 的内容，或直接 JSON）"""</span>
+        <span class="c-kw">try</span>:
+            config = json.loads(extend)
+            self.base_url = config.get(<span class="c-str">'url'</span>, self.base_url)
+            token = config.get(<span class="c-str">'token'</span>, <span class="c-str">''</span>)
+            <span class="c-kw">if</span> token:
+                self.session.headers.update({<span class="c-str">'Authorization'</span>: <span class="c-str">f'Bearer {token}'</span>})
+        <span class="c-kw">except</span> Exception:
+            <span class="c-kw">pass</span>
+
+    <span class="c-kw">def</span> <span class="c-tag">homeContent</span>(self, filter: bool) -> str:
+        resp = self.session.get(self.base_url + <span class="c-str">'/home'</span>).json()
+        classes = [
+            {<span class="c-str">'type_id'</span>: c[<span class="c-str">'id'</span>], <span class="c-str">'type_name'</span>: c[<span class="c-str">'name'</span>], <span class="c-str">'type_flag'</span>: <span class="c-str">'1'</span>}
+            <span class="c-kw">for</span> c <span class="c-kw">in</span> resp.get(<span class="c-str">'categories'</span>, [])
+        ]
+        result = {<span class="c-str">'class'</span>: classes}
+        <span class="c-kw">if</span> filter:
+            result[<span class="c-str">'filters'</span>] = self._build_filters()
+        <span class="c-kw">return</span> json.dumps(result, ensure_ascii=<span class="c-kw">False</span>)
+
+    <span class="c-kw">def</span> <span class="c-tag">categoryContent</span>(self, tid: str, pg: str, filter: bool,
+                          extend: dict) -> str:
+        url = self.base_url + <span class="c-str">f'/vod?type={tid}&pg={pg}'</span>
+        url += <span class="c-str">f'&area={extend.get("area","")}&year={extend.get("year","")}'</span>
+        data = self.session.get(url).json()
+        <span class="c-kw">return</span> json.dumps({
+            <span class="c-str">'list'</span>:      [self._map_vod(v) <span class="c-kw">for</span> v <span class="c-kw">in</span> data.get(<span class="c-str">'list'</span>, [])],
+            <span class="c-str">'pagecount'</span>: data.get(<span class="c-str">'totalPage'</span>, 1),
+        }, ensure_ascii=<span class="c-kw">False</span>)
+
+    <span class="c-kw">def</span> <span class="c-tag">detailContent</span>(self, ids: list) -> str:
+        data = self.session.get(self.base_url + <span class="c-str">f'/detail?id={ids[0]}'</span>).json()
+        vod = data[<span class="c-str">'vod'</span>]
+        play_url = <span class="c-str">'#'</span>.join(
+            <span class="c-str">f'{ep["name"]}${ep["url"]}'</span> <span class="c-kw">for</span> ep <span class="c-kw">in</span> vod.get(<span class="c-str">'episodes'</span>, [])
+        )
+        <span class="c-kw">return</span> json.dumps({<span class="c-str">'list'</span>: [{
+            <span class="c-str">'vod_id'</span>:        ids[0],
+            <span class="c-str">'vod_name'</span>:      vod[<span class="c-str">'title'</span>],
+            <span class="c-str">'vod_pic'</span>:       vod.get(<span class="c-str">'cover'</span>, <span class="c-str">''</span>),
+            <span class="c-str">'vod_content'</span>:   vod.get(<span class="c-str">'desc'</span>, <span class="c-str">''</span>),
+            <span class="c-str">'vod_year'</span>:      vod.get(<span class="c-str">'year'</span>, <span class="c-str">''</span>),
+            <span class="c-str">'vod_actor'</span>:     vod.get(<span class="c-str">'actors'</span>, <span class="c-str">''</span>),
+            <span class="c-str">'vod_director'</span>:  vod.get(<span class="c-str">'director'</span>, <span class="c-str">''</span>),
+            <span class="c-str">'vod_play_from'</span>: <span class="c-str">'线路1'</span>,
+            <span class="c-str">'vod_play_url'</span>:  play_url,
+        }]}, ensure_ascii=<span class="c-kw">False</span>)
+
+    <span class="c-kw">def</span> <span class="c-tag">playerContent</span>(self, flag: str, id_: str,
+                        vip_flags: list) -> str:
+        <span class="c-kw">if</span> any(id_.endswith(ext) <span class="c-kw">for</span> ext <span class="c-kw">in</span> [<span class="c-str">'.m3u8'</span>, <span class="c-str">'.mp4'</span>]):
+            <span class="c-kw">return</span> json.dumps({<span class="c-str">'parse'</span>: 0, <span class="c-str">'url'</span>: id_})
+        data = self.session.get(self.base_url + <span class="c-str">f'/play?id={id_}'</span>).json()
+        <span class="c-kw">return</span> json.dumps({
+            <span class="c-str">'parse'</span>:  0,
+            <span class="c-str">'url'</span>:    data[<span class="c-str">'url'</span>],
+            <span class="c-str">'header'</span>: {<span class="c-str">'Referer'</span>: self.base_url},
+        }, ensure_ascii=<span class="c-kw">False</span>)
+
+    <span class="c-kw">def</span> <span class="c-tag">searchContent</span>(self, key: str, quick: bool) -> str:
+        data = self.session.get(self.base_url + <span class="c-str">f'/search?q={key}'</span>).json()
+        <span class="c-kw">return</span> json.dumps({
+            <span class="c-str">'list'</span>: [self._map_vod(v) <span class="c-kw">for</span> v <span class="c-kw">in</span> data.get(<span class="c-str">'list'</span>, [])]
+        }, ensure_ascii=<span class="c-kw">False</span>)
+
+    <span class="c-cmt">### ── 工具函数 ─────────────────────────────────</span>
+    <span class="c-kw">def</span> <span class="c-tag">_map_vod</span>(self, item: dict) -> dict:
+        <span class="c-kw">return</span> {
+            <span class="c-str">'vod_id'</span>:      item.get(<span class="c-str">'id'</span>, <span class="c-str">''</span>),
+            <span class="c-str">'vod_name'</span>:    item.get(<span class="c-str">'title'</span>, <span class="c-str">''</span>),
+            <span class="c-str">'vod_pic'</span>:     item.get(<span class="c-str">'cover'</span>, <span class="c-str">''</span>),
+            <span class="c-str">'vod_remarks'</span>: item.get(<span class="c-str">'tag'</span>, <span class="c-str">''</span>),
+        }
+
+    <span class="c-kw">def</span> <span class="c-tag">_build_filters</span>(self) -> dict:
+        common = [
+            {<span class="c-str">'key'</span>: <span class="c-str">'area'</span>, <span class="c-str">'name'</span>: <span class="c-str">'地区'</span>, <span class="c-str">'value'</span>: [
+                {<span class="c-str">'n'</span>: <span class="c-str">'全部'</span>, <span class="c-str">'v'</span>: <span class="c-str">''</span>}, {<span class="c-str">'n'</span>: <span class="c-str">'大陆'</span>, <span class="c-str">'v'</span>: <span class="c-str">'1'</span>}
+            ]},
+        ]
+        <span class="c-kw">return</span> {<span class="c-str">'1'</span>: common, <span class="c-str">'2'</span>: common}
+</code></pre>
+        </div>
+      </section>
+
+      <!-- ═══════════════ 06 UTILS ═══════════════ -->
+      <section class="section" id="utils">
+        <div class="section-num">06</div>
+        <h2>工具函数 API（req / pd / pdfh / pdfa / pdfl）</h2>
+
+        <p>
+          以下内置工具函数可在 JS Spider 中直接调用（无需 import），也可通过 JAR Spider 中的对应
+          Java 工具类实现类似功能。
+        </p>
+
+        <h3>pdfh — 提取单个值</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JavaScript</span>
+            <span class="code-desc">pdfh() 规则语法</span>
+          </div>
+          <pre><code><span class="c-cmt">// 基本用法：选择器&&属性名</span>
+pdfh(html, <span class="c-str">'div.title&&Text'</span>)          <span class="c-cmt">// 获取文本内容</span>
+pdfh(html, <span class="c-str">'img.poster&&src'</span>)          <span class="c-cmt">// 获取 src 属性</span>
+pdfh(html, <span class="c-str">'a.link&&href'</span>)             <span class="c-cmt">// 获取 href 属性</span>
+pdfh(html, <span class="c-str">'div.wrap&&Html'</span>)           <span class="c-cmt">// 获取 innerHTML</span>
+
+<span class="c-cmt">// 多层选择（用空格分隔层级，类似 CSS 后代选择器）</span>
+pdfh(html, <span class="c-str">'.card .title&&Text'</span>)
+pdfh(html, <span class="c-str">'ul.eps li:eq(0) a&&Text'</span>)  <span class="c-cmt">// :eq(n) 选第 n 个
+
+// 正则提取（使用 ##regex##）</span>
+pdfh(html, <span class="c-str">'script&&Html##var id="(\\d+)"##'</span>)</code></pre>
+        </div>
+
+        <h3>pdfa — 提取节点列表</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JavaScript</span>
+            <span class="code-desc">pdfa() 返回 HTML 数组</span>
+          </div>
+          <pre><code><span class="c-cmt">// pdfa 返回匹配元素的 HTML 字符串列表</span>
+<span class="c-kw">var</span> items = pdfa(html, <span class="c-str">'.vod-list&&.vod-item'</span>);
+items.forEach(item => {
+    <span class="c-kw">var</span> name = pdfh(item, <span class="c-str">'a&&Title'</span>);  <span class="c-cmt">// 或 Text</span>
+    <span class="c-kw">var</span> href = pdfh(item, <span class="c-str">'a&&href'</span>);
+    <span class="c-kw">var</span> pic  = pdfh(item, <span class="c-str">'img&&src'</span>);
+    <span class="c-cmt">// ...</span>
+});</code></pre>
+        </div>
+
+        <h3>pd — 提取绝对 URL</h3>
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JavaScript</span>
+            <span class="code-desc">pd() 自动拼接 base URL</span>
+          </div>
+          <pre><code><span class="c-cmt">// pd = pdfh + URL 补全（相对路径 → 绝对路径）</span>
+<span class="c-kw">var</span> base = <span class="c-str">'https://site.example.com/movie/'</span>;
+<span class="c-kw">var</span> link = pd(html, <span class="c-str">'a.page-link&&href'</span>, base);
+<span class="c-cmt">// 例：href="/page/2" → https://site.example.com/page/2</span></code></pre>
+        </div>
+
+        <h3>选择器规则语法速查</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>语法</th>
+                <th>说明</th>
+                <th>示例</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">&&Text</td>
+                <td>获取元素的文本内容（innerText）</td>
+                <td><code>'h1.title&&Text'</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">&&Html</td>
+                <td>获取元素的 innerHTML</td>
+                <td><code>'div.desc&&Html'</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">&&属性名</td>
+                <td>获取指定 HTML 属性值</td>
+                <td><code>'img&&data-src'</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">:eq(n)</td>
+                <td>选取第 n 个匹配元素（0 开始）</td>
+                <td><code>'li:eq(2)&&Text'</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">##regex##</td>
+                <td>在提取结果上应用正则，返回第一个捕获组</td>
+                <td><code>'script&&Html##"url":"(.*?)"##'</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">空格</td>
+                <td>层级后代选择（父 子）</td>
+                <td><code>'.list .item a&&href'</code></td>
+              </tr>
+              <tr>
+                <td class="td-key">Class</td>
+                <td>获取 class 属性</td>
+                <td><code>'div&&Class'</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ═══════════════ 07 LIVE SPIDER ═══════════════ -->
+      <section class="section" id="live-spider">
+        <div class="section-num">07</div>
+        <h2>Live Spider（liveContent 方法）</h2>
+
+        <p>
+          <span class="ic">liveContent(url)</span>
+          用于在直播播放前对 URL 进行二次处理（如解密、获取临时鉴权 URL、动态替换地址等）。
+        </p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">Java</span>
+            <span class="code-desc">liveContent() — 通过 API 获取临时直播 URL</span>
+          </div>
+          <pre><code><span class="c-kw">@Override</span>
+<span class="c-kw">public</span> String <span class="c-tag">liveContent</span>(String url) <span class="c-kw">throws</span> Exception {
+    <span class="c-cmt">// url 是配置中直播频道的原始 URL</span>
+    <span class="c-cmt">// 假设需要把静态 URL 换成带时效 token 的临时地址</span>
+    JSONObject body = get(apiBase + <span class="c-str">"/live/auth?channel="</span> + Uri.encode(url));
+    String tempUrl = body.getString(<span class="c-str">"stream_url"</span>);
+
+    <span class="c-cmt">// 可以直接返回 URL 字符串</span>
+    <span class="c-kw">return</span> tempUrl;
+
+    <span class="c-cmt">// 也可以返回播放 JSON（同 playerContent 格式）</span>
+    <span class="c-cmt">// return new JSONObject()
+    //     .put("url", tempUrl)
+    //     .put("header", new JSONObject().put("Referer", apiBase))
+    //     .toString();</span>
+}</code></pre>
+        </div>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JavaScript</span>
+            <span class="code-desc">liveContent() — JS 版本</span>
+          </div>
+          <pre><code>liveContent: <span class="c-kw">async function</span>(url) {
+    <span class="c-cmt">// 1. 直接返回重写后的 URL（最简单）</span>
+    <span class="c-kw">if</span> (url.includes(<span class="c-str">'cdn1.old.com'</span>)) {
+        <span class="c-kw">return</span> url.replace(<span class="c-str">'cdn1.old.com'</span>, <span class="c-str">'cdn2.new.com'</span>);
+    }
+
+    <span class="c-cmt">// 2. 通过接口获取临时鉴权 URL</span>
+    <span class="c-kw">var</span> resp = <span class="c-kw">await</span> req(this.baseUrl + <span class="c-str">`/live_auth?url=${encodeURIComponent(url)}`</span>);
+    <span class="c-kw">var</span> data = JSON.parse(resp.content);
+    <span class="c-kw">return</span> JSON.stringify({
+        url:    data.stream_url,
+        header: { <span class="c-str">'Referer'</span>: <span class="c-str">'https://live.example.com/'</span> },
+    });
+},</code></pre>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-title">✅ 直播配置中关联 Spider</div>
+          在直播配置（lives[]）中用
+          <code>spider</code>
+          字段指向同一 JAR/JS 文件，用
+          <code>playerContent</code>
+          字段指向负责播放处理的 Spider 类名即可。当直播频道带有
+          <code>playUrl</code>
+          时，liveContent 会被调用。
+        </div>
+      </section>
+
+      <!-- ═══════════════ 08 PROXY METHOD ═══════════════ -->
+      <section class="section" id="proxy-method">
+        <div class="section-num">08</div>
+        <h2>proxy() 本地代理方法</h2>
+
+        <p>
+          <span class="ic">proxy()</span>
+          让 Spider 在 App 内置的本地 HTTP
+          服务器上注册处理器，用于绕过某些服务跨域限制、动态修改请求/响应，或提供本地缓存服务。
+        </p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">Java</span>
+            <span class="code-desc">proxy() — 本地代理请求处理</span>
+          </div>
+          <pre><code><span class="c-cmt">// proxy() 返回 Object[]：[状态码, Content-Type, 响应体]</span>
+<span class="c-kw">@Override</span>
+<span class="c-kw">public</span> Object[] <span class="c-tag">proxy</span>(Map&lt;String, String&gt; params) <span class="c-kw">throws</span> Exception {
+    String action = params.get(<span class="c-str">"action"</span>);            <span class="c-cmt">// 自定义标识</span>
+    String url    = params.getOrDefault(<span class="c-str">"url"</span>, <span class="c-str">""</span>);
+
+    <span class="c-kw">if</span> (<span class="c-str">"m3u8_proxy"</span>.equals(action)) {
+        <span class="c-cmt">// 修改 m3u8 内容（如替换 key 请求 URL、添加认证头）</span>
+        String body = modifyM3u8(url);
+        <span class="c-kw">return new</span> Object[]{200, <span class="c-str">"application/x-mpegURL"</span>, body};
+    } <span class="c-kw">else if</span> (<span class="c-str">"key"</span>.equals(action)) {
+        <span class="c-cmt">// 动态获取 DRM key（从第三方服务）</span>
+        <span class="c-kw">byte</span>[] key = fetchDrmKey(params.get(<span class="c-str">"kid"</span>));
+        <span class="c-kw">return new</span> Object[]{200, <span class="c-str">"application/octet-stream"</span>, key};
+    } <span class="c-kw">else</span> {
+        <span class="c-kw">return new</span> Object[]{404, <span class="c-str">"text/plain"</span>, <span class="c-str">"not found"</span>};
+    }
+}</code></pre>
+        </div>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JavaScript</span>
+            <span class="code-desc">JS Spider 启用本地代理</span>
+          </div>
+          <pre><code><span class="c-kw">var</span> csp_DemoSite = {
+    <span class="c-cmt">// 启用本地代理（playerContent 中的 url 指向本地地址）</span>
+    local_proxy: <span class="c-kw">true</span>,
+
+    playerContent: <span class="c-kw">async function</span>(flag, id, vipFlags) {
+        <span class="c-cmt">// 构造本地地址，让 App 把请求forwarded 给 proxy()</span>
+        <span class="c-kw">return</span> JSON.stringify({
+            url: <span class="c-str">`http://127.0.0.1:9978/proxy?action=m3u8_proxy&url=${encodeURIComponent(id)}&key=${this.key}`</span>,
+            parse: 0,
+        });
+    },
+
+    proxy: <span class="c-kw">async function</span>(params) {
+        <span class="c-kw">var</span> url = params.url;
+        <span class="c-kw">var</span> resp = <span class="c-kw">await</span> req(url, { headers: { Authorization: <span class="c-str">`Bearer ${params.key}`</span> } });
+        <span class="c-cmt">// 修改 m3u8 内容，替换 key URI 为本地地址</span>
+        <span class="c-kw">var</span> content = resp.content.replace(
+            /URI="(.*?)"/g,
+            (_, keyUrl) => <span class="c-str">`URI="http://127.0.0.1:9978/proxy?action=key&url=${encodeURIComponent(keyUrl)}"`</span>
+        );
+        <span class="c-kw">return</span> [200, <span class="c-str">'application/x-mpegURL'</span>, content];
+    },
+};</code></pre>
+        </div>
+      </section>
+
+      <!-- ═══════════════ 09 PATTERNS ═══════════════ -->
+      <section class="section" id="patterns">
+        <div class="section-num">09</div>
+        <h2>常见模式与调试技巧</h2>
+
+        <h3>常见模式</h3>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JavaScript</span>
+            <span class="code-desc">模式 1：ext 字段传入不同域名，实现一套代码多站点复用</span>
+          </div>
+          <pre><code><span class="c-cmt">// config.json 中</span>
+{
+    <span class="c-str">"key"</span>: <span class="c-str">"site_a"</span>, <span class="c-str">"name"</span>: <span class="c-str">"站点A"</span>, <span class="c-str">"type"</span>: <span class="c-num">1</span>,
+    <span class="c-str">"api"</span>: <span class="c-str">"csp_Universal"</span>, <span class="c-str">"jar"</span>: <span class="c-str">"https://cdn.example.com/universal.js"</span>,
+    <span class="c-str">"ext"</span>: <span class="c-str">"{\"url\":\"https://site-a.example.com\",\"token\":\"tok_a\"}"</span>
+},
+{
+    <span class="c-str">"key"</span>: <span class="c-str">"site_b"</span>, <span class="c-str">"name"</span>: <span class="c-str">"站点B"</span>, <span class="c-str">"type"</span>: <span class="c-num">1</span>,
+    <span class="c-str">"api"</span>: <span class="c-str">"csp_Universal"</span>, <span class="c-str">"jar"</span>: <span class="c-str">"https://cdn.example.com/universal.js"</span>,
+    <span class="c-str">"ext"</span>: <span class="c-str">"{\"url\":\"https://site-b.example.com\",\"token\":\"tok_b\"}"</span>
+}</code></pre>
+        </div>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JavaScript</span>
+            <span class="code-desc">模式 2：用 vod_tag="folder" 实现多级目录浏览</span>
+          </div>
+          <pre><code>categoryContent: <span class="c-kw">async function</span>(tid, pg, filter, extend) {
+    <span class="c-cmt">// tid 格式：顶级分类用 "1"，子目录用 "folder_path/xxxxx"</span>
+    <span class="c-kw">if</span> (tid.startsWith(<span class="c-str">'folder/'</span>)) {
+        <span class="c-kw">return</span> <span class="c-kw">await</span> this.listFolder(tid.slice(7));
+    }
+    <span class="c-cmt">// 正常分类...</span>
+},
+
+listFolder: <span class="c-kw">async function</span>(path) {
+    <span class="c-kw">var</span> resp = <span class="c-kw">await</span> req(<span class="c-str">`https://api.example.com/dir?path=${path}`</span>);
+    <span class="c-kw">var</span> data = JSON.parse(resp.content);
+    <span class="c-kw">return</span> JSON.stringify({ list: data.items.map(item => ({
+        vod_id:      <span class="c-str">`folder/${item.path}`</span>,    <span class="c-cmt">// 子目录继续用 folder/ 前缀</span>
+        vod_name:    item.name,
+        vod_tag:     item.isDir ? <span class="c-str">'folder'</span> : <span class="c-str">''</span>,   <span class="c-cmt">// 目录项打 folder 标记</span>
+        vod_remarks: item.isDir ? <span class="c-str">'目录'</span> : item.size,
+    }))});
+},</code></pre>
+        </div>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">JavaScript</span>
+            <span class="code-desc">模式 3：action() 方法实现动态刷新 Token</span>
+          </div>
+          <pre><code><span class="c-cmt">// App 可以在 UI 中触发自定义 action（如"重新登录"按钮）</span>
+action: <span class="c-kw">async function</span>(act) {
+    <span class="c-kw">if</span> (act === <span class="c-str">'refresh_token'</span>) {
+        <span class="c-kw">var</span> resp = <span class="c-kw">await</span> req(this.baseUrl + <span class="c-str">'/refresh'</span>, {
+            method: <span class="c-str">'post'</span>,
+            body: JSON.stringify({ refresh_token: this.refreshToken }),
+            headers: { <span class="c-str">'Content-Type'</span>: <span class="c-str">'application/json'</span> },
+        });
+        this.token = JSON.parse(resp.content).access_token;
+        <span class="c-kw">return</span> JSON.stringify({ msg: <span class="c-str">'Token 刷新成功'</span>, code: 0 });
+    }
+    <span class="c-kw">return</span> JSON.stringify({ msg: <span class="c-str">'unknown action'</span>, code: -1 });
+},</code></pre>
+        </div>
+
+        <h3>调试技巧</h3>
+
+        <div class="callout callout-tip">
+          <div class="callout-title">✅ JS Spider 调试</div>
+          <ul style="margin: 8px 0 0 16px">
+            <li>
+              使用
+              <code>print()</code>
+              输出变量到 Logcat（Tag:
+              <code>QuickJS</code>
+              或
+              <code>catvod</code>
+              ）
+            </li>
+            <li>
+              在 Android Studio 用
+              <code>adb logcat | grep -E "QuickJS|catvod"</code>
+              实时查看日志
+            </li>
+            <li>先在 Node.js 中用 mock 数据测试核心逻辑，再迁移到 JS Spider</li>
+            <li>将每个功能写成独立函数，便于单独更换和测试</li>
+          </ul>
+        </div>
+
+        <div class="callout callout-tip">
+          <div class="callout-title">✅ JAR Spider 调试</div>
+          <ul style="margin: 8px 0 0 16px">
+            <li>
+              在 JAR 项目里写 Unit Test，用
+              <code>mockwebserver</code>
+              模拟 API
+            </li>
+            <li>
+              用
+              <code>android.util.Log.d("csp_MySpider", msg)</code>
+              输出调试信息
+            </li>
+            <li>
+              发布到本地 HTTP 服务器（如
+              <code>python -m http.server 8080</code>
+              ），在 App 里用
+              <code>http://10.0.2.2:8080/spider.jar</code>
+              （模拟器）调试
+            </li>
+            <li>
+              Spider 构造函数不要执行网络请求，所有网络操作放在
+              <code>init()</code>
+              或各方法中
+            </li>
+          </ul>
+        </div>
+
+        <div class="callout callout-warn">
+          <div class="callout-title">⚠️ 常见陷阱</div>
+          <ul style="margin: 8px 0 0 16px">
+            <li>
+              <strong>不要</strong>
+              在
+              <code>homeContent()</code>
+              里返回
+              <code>class=[]</code>
+              （空数组），否则分类列表为空，需要至少返回一个分类
+            </li>
+            <li>
+              <strong>不要</strong>
+              在
+              <code>detailContent()</code>
+              返回的 Vod 中省略
+              <code>vod_play_from</code>
+              /
+              <code>vod_play_url</code>
+              ，否则详情页无法播放
+            </li>
+            <li>
+              <code>vod_play_url</code>
+              中
+              <code>$$$</code>
+              分隔符两侧必须与
+              <code>vod_play_from</code>
+              中的来源数量完全对应
+            </li>
+            <li>JAR Spider 中切勿持有 Activity/Context 长期引用，否则会导致内存泄漏</li>
+            <li>
+              JS Spider
+              <code>init()</code>
+              是同步初始化入口，某些版本可能不支持 async，遇到问题改为同步版本
+            </li>
+          </ul>
+        </div>
+
+        <h3>返回格式快速参考</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>方法</th>
+                <th>必须包含</th>
+                <th>可选</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="td-key">homeContent</td>
+                <td>
+                  <code>class[]</code>
+                  （分类列表）
+                </td>
+                <td>
+                  <code>list[]</code>
+                  （首页推荐），
+                  <code>filters{}</code>
+                  （筛选器）
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key">homeVideoContent</td>
+                <td><code>list[]</code></td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td class="td-key">categoryContent</td>
+                <td><code>list[]</code></td>
+                <td>
+                  <code>pagecount</code>
+                  （总页数）
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key">detailContent</td>
+                <td>
+                  <code>list[]</code>
+                  （含 vod_play_from/url）
+                </td>
+                <td>
+                  <code>subs[]</code>
+                  （字幕），
+                  <code>danmaku</code>
+                  （弹幕）
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key">playerContent</td>
+                <td>
+                  <code>url</code>
+                  或
+                  <code>parse=1</code>
+                </td>
+                <td>
+                  <code>header</code>
+                  ，
+                  <code>format</code>
+                  ，
+                  <code>key</code>
+                  （DRM），
+                  <code>subs[]</code>
+                  ，
+                  <code>drm</code>
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key">searchContent</td>
+                <td><code>list[]</code></td>
+                <td>
+                  <code>pagecount</code>
+                  （搜索分页版）
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key">liveContent</td>
+                <td>
+                  URL 字符串 或 包含
+                  <code>url</code>
+                  的 JSON
+                </td>
+                <td>
+                  <code>header</code>
+                  （直播请求头）
+                </td>
+              </tr>
+              <tr>
+                <td class="td-key">proxy</td>
+                <td><code>[statusCode, contentType, body]</code></td>
+                <td>—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <p>
+        FongMi/TV 开发文档 · 基于
+        <a href="https://github.com/FongMi/TV" style="color: var(--accent); text-decoration: none">
+          FongMi/TV (release 分支)
+        </a>
+        源码整理
+      </p>
+    </footer>
+
+    <script src="main.js" defer></script>
+  </body>
+</html>
